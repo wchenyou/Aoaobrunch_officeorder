@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>揪團管理｜嗷嗷早午餐</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27><rect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%23F08A24%27/><g fill=%27white%27><ellipse cx=%2732%27 cy=%2742%27 rx=%2713%27 ry=%2710.5%27/><ellipse cx=%2714%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/><ellipse cx=%2726%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2738%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2750%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/></g></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="top"></div>
+<div class="wrap"><div id="page"><p class="muted"><span class="spin"></span> 載入中…</p></div></div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="ui.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const SESSION_ID = params.get('session') || '';
+const TOKEN = params.get('admin') || '';
+
+let SESSION = null, SETTINGS = {}, orders = [], built = false;
+const page = document.getElementById('page');
+document.getElementById('top').innerHTML = renderTopbar('揪團管理');
+
+if (!SESSION_ID || !TOKEN) {
+  page.innerHTML = centerMsg('連結無效', '這個網址少了揪團編號或管理權杖，請用建立揪團時拿到的管理連結。');
+} else {
+  load();
+  setInterval(load, 20000);
+}
+
+function load() {
+  return apiGet('getAdminData', { session: SESSION_ID, token: TOKEN })
+    .then(function (res) {
+      SESSION = res.session; orders = res.orders || []; SETTINGS = res.settings || {};
+      if (!built) { buildShell(); built = true; }
+      renderAll();
+    })
+    .catch(function (err) {
+      if (!built) page.innerHTML = centerMsg('無法載入', err.message || String(err));
+    });
+}
+
+function buildShell() {
+  const orderUrl = location.origin + location.pathname.replace(/admin\.html$/, 'order.html') + '?session=' + SESSION_ID;
+
+  page.innerHTML =
+    '<h1>' + escapeHtml(SESSION.organizer) + ' 的揪團 🐾</h1>' +
+    '<p class="muted">編號 ' + escapeHtml(SESSION.id) + '　<span id="statusBadge"></span></p>' +
+
+    '<div class="stat-grid">' +
+      '<div class="stat"><div class="stat-num" id="stPeople">0</div><div class="stat-label">人</div></div>' +
+      '<div class="stat"><div class="stat-num" id="stItems">0</div><div class="stat-label">份</div></div>' +
+      '<div class="stat"><div class="stat-num accent" id="stTotal">$0</div><div class="stat-label">小計</div></div>' +
+    '</div>' +
+
+    '<div id="minOrderCard"></div>' +
+
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>分享給同事的點餐連結</h2></div>' +
+      linkBox(orderUrl, 'shareUrl') +
+      '<div class="tiny" id="deadlineLine" style="margin-top:9px;"></div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>目前收到的訂單</h2><span class="spacer"></span>' +
+        '<button class="btn btn-ghost btn-sm" id="refreshBtn">重新整理</button></div>' +
+      '<div id="orderList"></div>' +
+      '<div class="tiny" style="margin-top:12px;text-align:center;">每 20 秒會自動更新一次</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>這次的訂購資訊</h2></div>' +
+      '<dl id="metaList" style="margin:0;"></dl>' +
+    '</div>' +
+
+    '<div id="msgArea"></div>' +
+    renderFoot() +
+
+    '<div class="cartbar">' +
+      '<div class="cartbar-info"><div class="cartbar-count" id="barNote">確認後一次通知店家</div>' +
+        '<div class="cartbar-total">$<span id="barTotal">0</span></div></div>' +
+      '<button class="btn btn-primary" id="finalizeBtn">送單</button>' +
+    '</div>';
+
+  document.getElementById('refreshBtn').addEventListener('click', function () {
+    const b = this;
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>';
+    load().then(function () { b.disabled = false; b.textContent = '重新整理'; });
+  });
+
+  document.getElementById('finalizeBtn').addEventListener('click', finalize);
+}
+
+function renderAll() {
+  const total = orders.reduce(function (s, o) { return s + (Number(o.subtotal) || 0); }, 0);
+  const count = orders.reduce(function (s, o) { return s + Number(o.qty); }, 0);
+  const people = {};
+  orders.forEach(function (o) { (people[o.name] = people[o.name] || []).push(o); });
+  const names = Object.keys(people);
+
+  document.getElementById('stPeople').textContent = names.length;
+  document.getElementById('stItems').textContent = count;
+  document.getElementById('stTotal').textContent = '$' + total;
+  document.getElementById('barTotal').textContent = total;
+
+  /* 狀態 */
+  const sent = SESSION.status === '已送單';
+  const left = timeLeft(SESSION.deadline);
+  document.getElementById('statusBadge').innerHTML = sent
+    ? '<span class="badge warn">已送單</span>'
+    : (left ? '<span class="badge">收單中</span>' : '<span class="badge warn">已截止</span>');
+
+  document.getElementById('deadlineLine').innerHTML = sent
+    ? '這團已經送單，同事無法再點餐。'
+    : (left
+      ? '收單截止 ' + fmtDateTime(SESSION.deadline) + '，<span class="countdown">還有 ' + left + '</span>'
+      : '已經超過收單截止時間，同事無法再點餐或修改。');
+
+  /* 低消進度 */
+  const minOrder = Number(SETTINGS['低消金額'] || 0);
+  const card = document.getElementById('minOrderCard');
+  if (SESSION.fulfillment === '外送' && minOrder) {
+    const pct = Math.min(100, Math.round(total / minOrder * 100));
+    const done = total >= minOrder;
+    card.innerHTML =
+      '<div class="card">' +
+        '<div class="card-head"><span class="dot"></span><h2>外送低消</h2><span class="spacer"></span>' +
+          '<span class="tiny num">' + pct + '%</span></div>' +
+        '<div class="progress"><div class="progress-fill' + (done ? ' done' : '') + '" style="width:' + pct + '%"></div></div>' +
+        '<div class="tiny">' + (done
+          ? '✅ 已達 $' + minOrder + ' 低消，可以外送了'
+          : '還差 <strong class="num">$' + (minOrder - total) + '</strong> 才到 $' + minOrder + ' 的外送門檻') +
+        '</div>' +
+      '</div>';
+  } else {
+    card.innerHTML = '';
+  }
+
+  /* 訂單列表 */
+  const list = document.getElementById('orderList');
+  if (!names.length) {
+    list.innerHTML = '<div class="empty">' + PAW_MARK + '<div>還沒有人點餐<br><span class="tiny">把上面的連結貼到群組吧</span></div></div>';
+  } else {
+    list.innerHTML = names.map(function (name) {
+      const rows = people[name];
+      const sum = rows.reduce(function (s, o) { return s + (Number(o.subtotal) || 0); }, 0);
+      return '<div class="person">' +
+        '<div class="person-head"><span class="person-name">' + escapeHtml(name) + '</span>' +
+        '<span class="person-total">$' + sum + '</span></div>' +
+        rows.map(function (o) {
+          const spec = [o.size, o.opt1, o.opt2].filter(Boolean).join('・');
+          return '<div class="person-item"><span>' + escapeHtml(o.itemName) +
+            (spec ? ' <span class="tiny">（' + escapeHtml(spec) + '）</span>' : '') +
+            (o.note ? ' <span class="tiny">※' + escapeHtml(o.note) + '</span>' : '') +
+            '</span><span class="q">×' + o.qty + '</span></div>';
+        }).join('') +
+        '</div>';
+    }).join('');
+  }
+
+  /* 訂購資訊 */
+  const meta = [
+    ['取餐方式', SESSION.fulfillment],
+    ['預訂日期', fmtDate(SESSION.deliveryDate)],
+    ['期望送達', SESSION.deliveryTime]
+  ];
+  if (SESSION.fulfillment === '外送') meta.push(['外送地址', SESSION.address]);
+  meta.push(['需要餐具', SESSION.needUtensils]);
+  meta.push(['公司／統編', SESSION.company + '　' + SESSION.taxId]);
+  meta.push(['聯絡窗口', SESSION.contactName + '　' + SESSION.contactPhone]);
+  meta.push(['方便接聽', SESSION.contactAvailableTime]);
+  meta.push(['颱風假取消', SESSION.typhoonCancel]);
+  if (SESSION.note) meta.push(['備註', SESSION.note]);
+
+  document.getElementById('metaList').innerHTML = meta.map(function (m) {
+    return '<div class="meta-row"><dt>' + escapeHtml(m[0]) + '</dt><dd>' + escapeHtml(m[1] || '—') + '</dd></div>';
+  }).join('');
+
+  /* 送單按鈕 */
+  const btn = document.getElementById('finalizeBtn');
+  if (sent) {
+    btn.disabled = true;
+    btn.textContent = '已送單';
+    document.getElementById('barNote').textContent = '已通知店家';
+  }
+}
+
+function finalize() {
+  if (!orders.length) { alert('目前還沒有任何訂單'); return; }
+  const total = orders.reduce(function (s, o) { return s + (Number(o.subtotal) || 0); }, 0);
+  const minOrder = Number(SETTINGS['低消金額'] || 0);
+  let warn = '';
+  if (SESSION.fulfillment === '外送' && minOrder && total < minOrder) {
+    warn = '\n\n⚠️ 目前 $' + total + '，還沒到 $' + minOrder + ' 的外送低消。';
+  }
+  if (!confirm('確定要送單嗎？\n送出後同事就不能再點餐或修改，店家會收到一封彙整好的訂單信。' + warn)) return;
+
+  const btn = document.getElementById('finalizeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>';
+
+  apiPost('finalizeSession', { sessionId: SESSION_ID, token: TOKEN }).then(function (res) {
+    SESSION.status = '已送單';
+    renderAll();
+    document.getElementById('msgArea').innerHTML =
+      '<div class="notice notice-good"><span class="ico">✅</span><div><strong>' +
+      escapeHtml(res.message) + '</strong><br>訂單明細都留在 Google 試算表裡，收錢時可以對。</div></div>';
+    document.getElementById('msgArea').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }).catch(function (err) {
+    document.getElementById('msgArea').innerHTML =
+      '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
+    btn.disabled = false;
+    btn.textContent = '送單';
+  });
+}
+</script>
+</body>
+</html>

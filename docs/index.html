@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>發起團購｜嗷嗷早午餐</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27><rect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%23F08A24%27/><g fill=%27white%27><ellipse cx=%2732%27 cy=%2742%27 rx=%2713%27 ry=%2710.5%27/><ellipse cx=%2714%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/><ellipse cx=%2726%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2738%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2750%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/></g></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="top"></div>
+
+<div class="wrap">
+  <div id="page"></div>
+</div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="ui.js"></script>
+<script>
+document.getElementById('top').innerHTML = renderTopbar('發起辦公室團購');
+
+const page = document.getElementById('page');
+
+page.innerHTML =
+  '<h1>來揪一團吧 🐾</h1>' +
+  '<p class="muted">填一次訂購資訊，系統會給你兩個連結：一個丟到辦公室群組讓大家點餐，一個你自己留著看訂單、按送單。</p>' +
+
+  '<div class="notice notice-info" id="rules"><span class="ico">📌</span><div>載入店家規定中…</div></div>' +
+
+  '<form id="form">' +
+
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>你是誰</h2></div>' +
+      '<div class="field"><label for="organizer">主揪姓名 <span class="req">*</span></label>' +
+        '<input type="text" id="organizer" placeholder="大家看得懂的稱呼" required></div>' +
+      '<div class="field"><label for="organizerEmail">你的 Email</label>' +
+        '<input type="email" id="organizerEmail" placeholder="選填，送單時會副本一份給你">' +
+        '<div class="tiny" style="margin-top:5px;">留了就會跟店家收到同一封訂單彙整信，方便你對帳收錢。</div></div>' +
+      '<div class="field"><span class="field-label">取餐方式 <span class="req">*</span></span>' +
+        '<div class="seg">' +
+          '<input type="radio" name="fulfillment" id="f1" value="外送" checked><label for="f1">外送到辦公室</label>' +
+          '<input type="radio" name="fulfillment" id="f2" value="自取"><label for="f2">自己去取</label>' +
+        '</div></div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>什麼時候要</h2></div>' +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="deliveryDate">預訂日期 <span class="req">*</span></label>' +
+          '<input type="date" id="deliveryDate" required></div>' +
+        '<div class="field"><label for="deliveryTime">期望送達時間 <span class="req">*</span></label>' +
+          '<input type="text" id="deliveryTime" placeholder="例如 11:30" required></div>' +
+      '</div>' +
+      '<div class="tiny" style="margin:-6px 0 14px;">平日外送 08:00–15:00、假日 10:00–16:00，誤差半小時內送達。</div>' +
+
+      '<div class="field"><label for="deadline">同事的收單截止時間 <span class="req">*</span></label>' +
+        '<input type="datetime-local" id="deadline" required>' +
+        '<div class="tiny" id="deadlineHint" style="margin-top:5px;">先選預訂日期，這裡會告訴你最晚可以設到什麼時候。</div></div>' +
+
+      '<div class="field" id="addressField"><label for="address">外送地址 <span class="req">*</span></label>' +
+        '<input type="text" id="address" placeholder="請確認在店面 3 公里內"></div>' +
+
+      '<div class="field"><span class="field-label">需要餐具嗎 <span class="req">*</span></span>' +
+        '<div class="seg">' +
+          '<input type="radio" name="needUtensils" id="u1" value="是" checked><label for="u1">要</label>' +
+          '<input type="radio" name="needUtensils" id="u2" value="否"><label for="u2">不用</label>' +
+          '<input type="radio" name="needUtensils" id="u3" value="其他"><label for="u3">其他</label>' +
+        '</div></div>' +
+
+      '<div class="field" style="margin-bottom:0;"><span class="field-label">若遇颱風假是否取消 <span class="req">*</span></span>' +
+        '<div class="seg">' +
+          '<input type="radio" name="typhoonCancel" id="t1" value="是" checked><label for="t1">取消</label>' +
+          '<input type="radio" name="typhoonCancel" id="t2" value="否"><label for="t2">照送</label>' +
+          '<input type="radio" name="typhoonCancel" id="t3" value="其他"><label for="t3">其他</label>' +
+        '</div></div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>發票與聯絡窗口</h2></div>' +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="company">公司名稱 <span class="req">*</span></label>' +
+          '<input type="text" id="company" required></div>' +
+        '<div class="field"><label for="taxId">統一編號 <span class="req">*</span></label>' +
+          '<input type="text" id="taxId" placeholder="不需要發票請填「否」" required></div>' +
+      '</div>' +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="contactName">聯絡窗口姓名 <span class="req">*</span></label>' +
+          '<input type="text" id="contactName" required></div>' +
+        '<div class="field"><label for="contactPhone">聯絡窗口電話 <span class="req">*</span></label>' +
+          '<input type="tel" id="contactPhone" required></div>' +
+      '</div>' +
+      '<div class="field"><label for="contactAvailableTime">方便接聽電話的時間 <span class="req">*</span></label>' +
+        '<input type="text" id="contactAvailableTime" placeholder="例如 下午 2 點後" required>' +
+        '<div class="tiny" style="margin-top:5px;">店家會在前一日或當日致電確認，請務必能接到電話。</div></div>' +
+      '<div class="field" style="margin-bottom:0;"><label for="note">想跟店家說的話</label>' +
+        '<textarea id="note" placeholder="選填"></textarea></div>' +
+    '</div>' +
+
+    '<button type="submit" class="btn btn-primary btn-block" id="submitBtn">建立揪團</button>' +
+    '<div id="errorMsg"></div>' +
+  '</form>' +
+
+  '<div id="result"></div>' +
+  renderFoot();
+
+/* 店家規定 */
+apiGet('getMenu').then(function (res) {
+  const s = res.settings || {};
+  document.querySelector('#rules div').innerHTML =
+    '<strong>店家規定</strong>：距離店面 ' + (s['外送範圍公里數'] || 3) + ' 公里內、外送需滿 ' +
+    (s['低消金額'] || 1000) + ' 元，而且最晚要在<strong>預訂日期前一天 15:00</strong> 之前完成送單。';
+}).catch(function () {
+  document.querySelector('#rules div').innerHTML =
+    '<strong>店家規定</strong>：外送限 3 公里內、需滿 1000 元，最晚需於預訂日期前一天 15:00 前送單。';
+});
+
+/* 外送才需要地址 */
+const fulfillmentRadios = [].slice.call(document.getElementsByName('fulfillment'));
+const addressField = document.getElementById('addressField');
+function syncAddress() {
+  const val = fulfillmentRadios.filter(function (r) { return r.checked; })[0].value;
+  addressField.style.display = (val === '外送') ? 'block' : 'none';
+  document.getElementById('address').required = (val === '外送');
+}
+fulfillmentRadios.forEach(function (r) { r.addEventListener('change', syncAddress); });
+syncAddress();
+
+/* 截止時間上限：預訂日期前一天 15:00 */
+const dateInput = document.getElementById('deliveryDate');
+const deadlineInput = document.getElementById('deadline');
+const deadlineHint = document.getElementById('deadlineHint');
+function pad(n) { return String(n).padStart(2, '0'); }
+dateInput.addEventListener('change', function () {
+  if (!dateInput.value) return;
+  const d = new Date(dateInput.value + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
+  d.setHours(15, 0, 0, 0);
+  deadlineInput.max = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  deadlineHint.innerHTML = '最晚可以設到 <strong>' +
+    d.toLocaleString('zh-TW', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) +
+    '</strong>，這是店家「最晚前一日 15:00 下單」的規定。';
+});
+
+/* 送出 */
+document.getElementById('form').addEventListener('submit', function (e) {
+  e.preventDefault();
+  const errorMsg = document.getElementById('errorMsg');
+  errorMsg.innerHTML = '';
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> 建立中…';
+
+  function pick(name) {
+    return [].slice.call(document.getElementsByName(name)).filter(function (r) { return r.checked; })[0].value;
+  }
+  function val(id) { return document.getElementById(id).value.trim(); }
+
+  apiPost('createSession', {
+    organizer: val('organizer'),
+    organizerEmail: val('organizerEmail'),
+    fulfillment: pick('fulfillment'),
+    deliveryDate: dateInput.value,
+    deliveryTime: val('deliveryTime'),
+    address: val('address'),
+    deadline: deadlineInput.value,
+    needUtensils: pick('needUtensils'),
+    typhoonCancel: pick('typhoonCancel'),
+    company: val('company'),
+    taxId: val('taxId'),
+    contactName: val('contactName'),
+    contactPhone: val('contactPhone'),
+    contactAvailableTime: val('contactAvailableTime'),
+    note: val('note')
+  }).then(function (res) {
+    const base = location.href.replace(/index\.html(\?.*)?$/, '').replace(/\?.*$/, '');
+    const orderUrl = base + 'order.html?session=' + res.sessionId;
+    const adminUrl = base + 'admin.html?session=' + res.sessionId + '&admin=' + res.adminToken;
+
+    document.getElementById('form').style.display = 'none';
+    document.getElementById('rules').style.display = 'none';
+    document.querySelector('#page h1').textContent = '揪團建立好了 🎉';
+    document.querySelector('#page > p.muted').textContent = '接下來把點餐連結貼到群組，管理連結自己留著。';
+
+    document.getElementById('result').innerHTML =
+      '<div class="card">' +
+        '<div class="card-head"><span class="dot"></span><h2>① 分享給同事的點餐連結</h2></div>' +
+        linkBox(orderUrl, 'orderUrl') +
+        '<div class="tiny" style="margin-top:8px;">同事點開就能看菜單、選餐、送出，截止前也能自己改。</div>' +
+      '</div>' +
+      '<div class="card">' +
+        '<div class="card-head"><span class="dot"></span><h2>② 你的管理連結（請留好）</h2></div>' +
+        linkBox(adminUrl, 'adminUrl') +
+        '<div class="tiny" style="margin-top:8px;">只有這個連結能看到全部訂單、按下送單。建議先加到書籤。</div>' +
+      '</div>' +
+      '<a class="btn btn-primary btn-block" style="text-decoration:none;text-align:center;display:block;" href="' + adminUrl + '">前往管理頁面</a>';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }).catch(function (err) {
+    errorMsg.innerHTML = '<div class="notice notice-warn" style="margin-top:12px;"><span class="ico">⚠️</span><div>' +
+      escapeHtml(err.message || String(err)) + '</div></div>';
+    btn.disabled = false;
+    btn.textContent = '建立揪團';
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>點餐｜嗷嗷早午餐團購</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27><rect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%23F08A24%27/><g fill=%27white%27><ellipse cx=%2732%27 cy=%2742%27 rx=%2713%27 ry=%2710.5%27/><ellipse cx=%2714%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/><ellipse cx=%2726%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2738%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2750%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/></g></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="top"></div>
+<div class="wrap"><div id="page"><p class="muted"><span class="spin"></span> 載入中…</p></div></div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="ui.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const SESSION_ID = params.get('session') || '';
+let EDIT_CODE = params.get('edit') || '';
+
+let MENU = [], SESSION = null, SETTINGS = {}, cart = [];
+const page = document.getElementById('page');
+document.getElementById('top').innerHTML = renderTopbar('辦公室團購');
+
+if (!SESSION_ID) {
+  page.innerHTML = centerMsg('找不到這個揪團', '連結裡沒有揪團編號，跟主揪要一次正確的點餐連結吧。');
+} else {
+  apiGet('getOrderPageData', { session: SESSION_ID, edit: EDIT_CODE })
+    .then(function (res) {
+      SESSION = res.session; MENU = res.menu; SETTINGS = res.settings || {};
+      if (!SESSION) {
+        page.innerHTML = centerMsg('找不到這個揪團', '連結可能有誤，或這團已經被刪掉了。');
+        return;
+      }
+      render(res.existingOrder || []);
+    })
+    .catch(function (err) {
+      page.innerHTML = centerMsg('載入失敗', err.message || String(err));
+    });
+}
+
+function render(existing) {
+  const left = timeLeft(SESSION.deadline);
+  const closed = SESSION.status !== '收單中' || !left;
+
+  let html =
+    '<h1>' + escapeHtml(SESSION.organizer) + ' 揪的團 🐾</h1>' +
+    '<div class="card" style="padding:14px 18px;">' +
+      '<dl style="margin:0;">' +
+        row('取餐方式', SESSION.fulfillment) +
+        row('預訂日期', fmtDate(SESSION.deliveryDate) + '　' + escapeHtml(SESSION.deliveryTime || '')) +
+        row('收單截止', closed ? '已截止' : fmtDateTime(SESSION.deadline) + '　<span class="countdown">還有 ' + left + '</span>') +
+      '</dl>' +
+    '</div>';
+
+  if (SETTINGS['颱風假政策文字']) {
+    html += '<div class="notice notice-info"><span class="ico">🌀</span><div>' +
+      escapeHtml(SETTINGS['颱風假政策文字']) + '</div></div>';
+  }
+
+  if (closed) {
+    html += '<div class="notice notice-warn"><span class="ico">⏰</span><div><strong>這團已經截止收單了</strong><br>' +
+      '沒辦法再送出或修改訂單，有需要的話直接找主揪 ' + escapeHtml(SESSION.organizer) + ' 喬。</div></div>' + renderFoot();
+    page.innerHTML = html;
+    return;
+  }
+
+  /* 分類導覽 */
+  const cats = [];
+  MENU.forEach(function (m) { if (cats.indexOf(m.category) < 0) cats.push(m.category); });
+  html += '<nav class="chipnav">' + cats.map(function (c, i) {
+    return '<a href="#cat' + i + '">' + escapeHtml(c) + '</a>';
+  }).join('') + '</nav>';
+
+  /* 菜單 */
+  html += '<div id="menuArea"></div>';
+
+  /* 你的訂單 */
+  html +=
+    '<div class="card" id="cartCard">' +
+      '<div class="card-head"><span class="dot"></span><h2>你點的東西</h2><span class="spacer"></span>' +
+        '<span class="tiny" id="cartHint"></span></div>' +
+      '<div id="cartList"></div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>留個名字讓主揪對得到</h2></div>' +
+      '<div class="field"><label for="name">姓名或分機 <span class="req">*</span></label>' +
+        '<input type="text" id="name" placeholder="例如 Aaron（3樓）"></div>' +
+      '<div class="field" style="margin-bottom:0;"><label for="globalNote">整筆訂單的備註</label>' +
+        '<textarea id="globalNote" placeholder="選填，例如不要辣、對某食材過敏"></textarea></div>' +
+    '</div>' +
+    '<div id="msgArea"></div>' +
+    renderFoot() +
+    '<div class="cartbar">' +
+      '<div class="cartbar-info" id="barInfo" style="cursor:pointer;" title="看看點了什麼">' +
+        '<div class="cartbar-count" id="barCount">還沒選東西</div>' +
+        '<div class="cartbar-total">$<span id="barTotal">0</span></div></div>' +
+      '<button class="btn btn-primary" id="submitBtn">送出訂單</button>' +
+    '</div>';
+
+  page.innerHTML = html;
+  buildMenu(cats);
+
+  document.getElementById('barInfo').addEventListener('click', function () {
+    document.getElementById('cartCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  if (EDIT_CODE && existing.length) {
+    document.getElementById('name').value = existing[0].name;
+    document.getElementById('globalNote').value = existing[0].note || '';
+    cart = existing.map(function (o) {
+      return { code: o.itemCode, name: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: Number(o.qty), price: Number(o.price) };
+    });
+    document.getElementById('submitBtn').textContent = '更新訂單';
+    document.getElementById('cartHint').textContent = '修改模式';
+  }
+
+  renderCart();
+  document.getElementById('submitBtn').addEventListener('click', submit);
+  setInterval(tickCountdown, 30000);
+}
+
+function row(k, v) {
+  return '<div class="meta-row"><dt>' + k + '</dt><dd>' + v + '</dd></div>';
+}
+
+function tickCountdown() {
+  const el = document.querySelector('.countdown');
+  if (!el) return;
+  const left = timeLeft(SESSION.deadline);
+  if (!left) { location.reload(); return; }
+  el.textContent = '還有 ' + left;
+}
+
+/* ---------- 菜單 ---------- */
+
+function buildMenu(cats) {
+  const area = document.getElementById('menuArea');
+  let html = '';
+  cats.forEach(function (cat, ci) {
+    const items = MENU.filter(function (m) { return m.category === cat; });
+    html += '<div class="cat-title" id="cat' + ci + '">' + PAW_MARK +
+      escapeHtml(cat) + ' <span class="count">' + items.length + ' 項</span></div>';
+    items.forEach(function (m) {
+      const idx = MENU.indexOf(m);
+      html +=
+        '<div class="item" data-i="' + idx + '">' +
+          '<div class="item-row">' +
+            '<div class="item-body">' +
+              '<div class="item-name">' + escapeHtml(m.name) + '</div>' +
+              tagsHtml(m) +
+            '</div>' +
+            priceBadge(m) +
+          '</div>' +
+          '<div class="item-panel"></div>' +
+        '</div>';
+    });
+  });
+  area.innerHTML = html;
+
+  area.querySelectorAll('.item-row').forEach(function (rowEl) {
+    rowEl.addEventListener('click', function () {
+      const item = rowEl.parentElement;
+      const wasOpen = item.classList.contains('open');
+      area.querySelectorAll('.item.open').forEach(function (o) { o.classList.remove('open'); });
+      if (!wasOpen) {
+        item.classList.add('open');
+        buildPanel(item);
+      }
+    });
+  });
+}
+
+function tagsHtml(m) {
+  const tags = [];
+  if (m.note) {
+    const cls = m.note.indexOf('無咖啡因') >= 0 ? 'tag tag-leaf'
+      : (m.note.indexOf('固定') >= 0 ? 'tag tag-berry' : 'tag');
+    tags.push('<span class="' + cls + '">' + escapeHtml(m.note) + '</span>');
+  }
+  if (m.opt1Name) tags.push('<span class="tag">可選' + escapeHtml(m.opt1Name) + '</span>');
+  if (m.opt2Name) tags.push('<span class="tag">可選' + escapeHtml(m.opt2Name) + '</span>');
+  if (m.category === '飲料' && !m.priceL) tags.push('<span class="tag">僅中杯</span>');
+  return tags.length ? '<div class="item-tags">' + tags.join('') + '</div>' : '';
+}
+
+function priceBadge(m) {
+  if (m.priceL) {
+    return '<div class="price-badge"><span class="p-dual">M $' + m.priceM + '</span>' +
+      '<span class="p-dual">L $' + m.priceL + '</span></div>';
+  }
+  return '<div class="price-badge"><span class="p">$' + m.priceM + '</span></div>';
+}
+
+function buildPanel(item) {
+  const m = MENU[Number(item.dataset.i)];
+  const panel = item.querySelector('.item-panel');
+  const state = { size: m.priceL ? 'M' : '', opt1: m.opt1Choices[0] || '', opt2: m.opt2Choices[0] || '', qty: 1 };
+
+  let html = '';
+  if (m.priceL) html += group('杯型', ['M', 'L'], state.size, 'size');
+  if (m.opt1Name) html += group(m.opt1Name, m.opt1Choices, state.opt1, 'opt1');
+  if (m.opt2Name) html += group(m.opt2Name, m.opt2Choices, state.opt2, 'opt2');
+
+  html +=
+    '<div class="panel-foot">' +
+      '<div class="stepper"><button type="button" data-step="-1">−</button>' +
+      '<span class="qty">1</span><button type="button" data-step="1">+</button></div>' +
+      '<button type="button" class="btn btn-primary btn-sm" style="flex:1;" data-add>加入　$<span data-sum>' +
+      (m.priceM) + '</span></button>' +
+    '</div>';
+
+  panel.innerHTML = html;
+
+  function unitPrice() { return (state.size === 'L' && m.priceL) ? m.priceL : m.priceM; }
+  function refresh() {
+    panel.querySelector('.qty').textContent = state.qty;
+    panel.querySelector('[data-sum]').textContent = unitPrice() * state.qty;
+  }
+
+  panel.querySelectorAll('.chip').forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      const key = chip.dataset.key;
+      state[key] = chip.dataset.val;
+      panel.querySelectorAll('.chip[data-key="' + key + '"]').forEach(function (c) { c.classList.remove('on'); });
+      chip.classList.add('on');
+      refresh();
+    });
+  });
+
+  panel.querySelectorAll('[data-step]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.qty = Math.max(1, state.qty + Number(b.dataset.step));
+      refresh();
+    });
+  });
+
+  panel.querySelector('[data-add]').addEventListener('click', function () {
+    addToCart({ code: m.code, name: m.name, size: state.size, opt1: state.opt1, opt2: state.opt2, qty: state.qty, price: unitPrice() });
+    item.classList.remove('open');
+  });
+}
+
+function group(label, choices, selected, key) {
+  return '<div class="optgroup"><div class="optgroup-label">' + escapeHtml(label) + '</div><div class="chips">' +
+    choices.map(function (c) {
+      return '<button type="button" class="chip' + (c === selected ? ' on' : '') +
+        '" data-key="' + key + '" data-val="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>';
+    }).join('') + '</div></div>';
+}
+
+/* ---------- 購物車 ---------- */
+
+function addToCart(line) {
+  const same = cart.filter(function (l) {
+    return l.code === line.code && l.size === line.size && l.opt1 === line.opt1 && l.opt2 === line.opt2;
+  })[0];
+  if (same) same.qty += line.qty; else cart.push(line);
+  renderCart();
+  const bar = document.querySelector('.cartbar');
+  bar.style.transform = 'translateX(-50%) scale(1.03)';
+  setTimeout(function () { bar.style.transform = 'translateX(-50%)'; }, 160);
+}
+
+function renderCart() {
+  const list = document.getElementById('cartList');
+  if (!cart.length) {
+    list.innerHTML = '<div class="empty">' + PAW_MARK + '<div>還沒加入任何東西<br><span class="tiny">點上面的品項就能選規格</span></div></div>';
+  } else {
+    list.innerHTML = cart.map(function (l, i) {
+      const spec = [l.size, l.opt1, l.opt2].filter(Boolean).join('・');
+      return '<div class="cart-line">' +
+        '<div class="cart-line-body"><div class="cart-line-name">' + escapeHtml(l.name) +
+        ' <span class="num">×' + l.qty + '</span></div>' +
+        (spec ? '<div class="cart-line-spec">' + escapeHtml(spec) + '</div>' : '') + '</div>' +
+        '<div class="cart-line-price">$' + (l.price * l.qty) + '</div>' +
+        '<button class="cart-x" data-rm="' + i + '" aria-label="移除">×</button></div>';
+    }).join('');
+    list.querySelectorAll('[data-rm]').forEach(function (b) {
+      b.addEventListener('click', function () { cart.splice(Number(b.dataset.rm), 1); renderCart(); });
+    });
+  }
+  const total = cart.reduce(function (s, l) { return s + l.price * l.qty; }, 0);
+  const count = cart.reduce(function (s, l) { return s + l.qty; }, 0);
+  document.getElementById('barTotal').textContent = total;
+  document.getElementById('barCount').textContent = count ? ('共 ' + count + ' 份') : '還沒選東西';
+}
+
+/* ---------- 送出 ---------- */
+
+function submit() {
+  const btn = document.getElementById('submitBtn');
+  const name = document.getElementById('name').value.trim();
+  const msgArea = document.getElementById('msgArea');
+  if (!name) {
+    document.getElementById('name').focus();
+    msgArea.innerHTML = notice('warn', '⚠️', '還沒填姓名，主揪會不知道這是誰點的。');
+    return;
+  }
+  if (!cart.length) {
+    msgArea.innerHTML = notice('warn', '⚠️', '購物車是空的，先挑點東西吧。');
+    return;
+  }
+
+  const globalNote = document.getElementById('globalNote').value.trim();
+  const items = cart.map(function (l) { return Object.assign({}, l, { note: globalNote }); });
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span>';
+  msgArea.innerHTML = '';
+
+  apiPost(EDIT_CODE ? 'updateOrder' : 'submitOrder', {
+    sessionId: SESSION_ID, name: name, items: items, orderCode: EDIT_CODE
+  }).then(function (res) {
+    EDIT_CODE = res.orderCode;
+    const editUrl = location.origin + location.pathname + '?session=' + SESSION_ID + '&edit=' + EDIT_CODE;
+    msgArea.innerHTML =
+      '<div class="card" style="border-color:var(--leaf);">' +
+        '<div class="card-head"><span class="dot" style="background:var(--leaf);"></span><h2>訂單送出了 ✅</h2></div>' +
+        '<p class="muted">截止前想改或想取消，回到這個專屬連結就可以：</p>' +
+        linkBox(editUrl, 'editUrl') +
+        '<button class="btn btn-danger btn-block btn-sm" style="margin-top:12px;" id="cancelBtn">取消這筆訂單</button>' +
+      '</div>';
+    btn.textContent = '更新訂單';
+    btn.disabled = false;
+    document.getElementById('cartHint').textContent = '修改模式';
+    document.getElementById('cancelBtn').addEventListener('click', cancelOrder);
+    msgArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }).catch(function (err) {
+    msgArea.innerHTML = notice('warn', '⚠️', err.message || String(err));
+    btn.disabled = false;
+    btn.textContent = EDIT_CODE ? '更新訂單' : '送出訂單';
+  });
+}
+
+function cancelOrder() {
+  if (!confirm('確定要取消這筆訂單嗎？')) return;
+  apiPost('cancelOrder', { sessionId: SESSION_ID, orderCode: EDIT_CODE }).then(function () {
+    page.innerHTML = centerMsg('訂單已取消', '如果改變主意，重新打開主揪給的點餐連結再點一次就好。');
+    document.querySelectorAll('.cartbar').forEach(function (b) { b.remove(); });
+  }).catch(function (err) { alert(err.message || String(err)); });
+}
+
+function notice(kind, ico, text) {
+  return '<div class="notice notice-' + kind + '"><span class="ico">' + ico + '</span><div>' + escapeHtml(text) + '</div></div>';
+}
+</script>
+</body>
+</html>
