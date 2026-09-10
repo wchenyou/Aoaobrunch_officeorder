@@ -90,6 +90,15 @@ function setupSheet() {
     settings.getRange(2, 1, SETTINGS_SEED.length, 2).setValues(SETTINGS_SEED);
   }
 
+  /* 新建的試算表會留一個空的預設分頁，清掉比較整齊 */
+  ss.getSheets().forEach(function (sh) {
+    const name = sh.getName();
+    const isDefault = (name === 'Sheet1' || name === '工作表1');
+    if (isDefault && sh.getLastRow() === 0 && ss.getSheets().length > 1) {
+      ss.deleteSheet(sh);
+    }
+  });
+
   SpreadsheetApp.flush();
   Logger.log('初始化完成！請到「設定」工作表，把「店家收單Email」改成真正的收單信箱。');
 }

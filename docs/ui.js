@@ -196,3 +196,26 @@ function timeAgo(ts) {
   if (min < 60) return min + ' 分鐘前';
   return Math.round(min / 60) + ' 小時前';
 }
+
+/* ==========================================================================
+   還沒設定後端網址時，直接在畫面上講清楚要做什麼
+   （三個頁面都會載入 ui.js，所以這裡裝一次就好）
+   ========================================================================== */
+
+(function warnIfNotConfigured() {
+  if (typeof apiConfigured === 'function' && apiConfigured()) return;
+  function show() {
+    const bar = document.createElement('div');
+    bar.className = 'notice notice-warn';
+    bar.style.cssText = 'margin:0;border-radius:0;justify-content:center;text-align:left;';
+    bar.innerHTML = '<span class="ico">🔧</span><div><strong>還沒接上後端</strong><br>' +
+      '請打開 <code>docs/config.js</code>，把 <code>API_URL</code> 換成你的 Apps Script Web App 網址（結尾是 <code>/exec</code>），' +
+      '再重新 commit 一次就會生效。</div>';
+    document.body.insertBefore(bar, document.body.firstChild);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', show);
+  } else {
+    show();
+  }
+})();

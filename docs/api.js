@@ -9,7 +9,17 @@
  * 這邊照樣可以把收到的內容當 JSON 字串解析（e.postData.contents）。
  */
 
+/** config.js 裡的 API_URL 有沒有真的填上去 */
+function apiConfigured() {
+  return typeof API_URL === 'string' && API_URL.indexOf('http') === 0;
+}
+
+function notConfigured() {
+  return Promise.reject(new Error('還沒設定後端網址：請打開 docs/config.js，把 API_URL 換成你的 Apps Script Web App 網址（結尾是 /exec）。'));
+}
+
 function apiGet(action, params) {
+  if (!apiConfigured()) return notConfigured();
   const usp = new URLSearchParams(Object.assign({ action: action }, params || {}));
   return fetch(API_URL + '?' + usp.toString())
     .then(function (r) { return r.json(); })
@@ -20,6 +30,7 @@ function apiGet(action, params) {
 }
 
 function apiPost(action, payload) {
+  if (!apiConfigured()) return notConfigured();
   return fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
