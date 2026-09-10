@@ -37,7 +37,12 @@ function load() {
   return apiGet('getAdminData', { session: SESSION_ID, token: TOKEN })
     .then(function (res) {
       SESSION = res.session; orders = res.orders || []; SETTINGS = res.settings || {};
-      if (!built) { buildShell(); built = true; }
+      if (!built) {
+        buildShell();
+        built = true;
+        /* 記在這台裝置上，之後主揪直接從首頁就能回到這一頁 */
+        rememberThisGroup();
+      }
       renderAll();
     })
     .catch(function (err) {
@@ -101,6 +106,18 @@ function buildShell() {
   });
 
   finalizeBtns().forEach(function (b) { b.addEventListener('click', finalize); });
+}
+
+function rememberThisGroup() {
+  saveMyGroup({
+    id: SESSION.id,
+    token: TOKEN,
+    company: SESSION.company,
+    organizer: SESSION.organizer,
+    deliveryDate: SESSION.deliveryDate,
+    deadline: SESSION.deadline,
+    status: SESSION.status
+  });
 }
 
 /* 手機浮動列與桌機側欄各有一顆送單鈕 */
@@ -218,6 +235,7 @@ function finalize() {
 
   apiPost('finalizeSession', { sessionId: SESSION_ID, token: TOKEN }).then(function (res) {
     SESSION.status = '已送單';
+    updateMyGroup(SESSION.id, { status: '已送單' });
     renderAll();
     document.getElementById('msgArea').innerHTML =
       '<div class="notice notice-good"><span class="ico">✅</span><div><strong>' +

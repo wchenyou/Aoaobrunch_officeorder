@@ -29,6 +29,8 @@ page.innerHTML =
   '<h1>來揪一團吧 🐾</h1>' +
   '<p class="muted">填一次訂購資訊，系統會給你兩個連結：一個丟到辦公室群組讓大家點餐，一個你自己留著看訂單、按送單。</p>' +
 
+  '<div id="myGroups"></div>' +
+
   '<div class="notice notice-info" id="rules"><span class="ico">📌</span><div>載入店家規定中…</div></div>' +
 
   '<form id="form"><div class="form-grid">' +
@@ -37,9 +39,9 @@ page.innerHTML =
       '<div class="card-head"><span class="dot"></span><h2>你是誰</h2></div>' +
       '<div class="field"><label for="organizer">主揪姓名 <span class="req">*</span></label>' +
         '<input type="text" id="organizer" placeholder="大家看得懂的稱呼" required></div>' +
-      '<div class="field"><label for="organizerEmail">你的 Email</label>' +
-        '<input type="email" id="organizerEmail" placeholder="選填，送單時會副本一份給你">' +
-        '<div class="tiny" style="margin-top:5px;">留了就會跟店家收到同一封訂單彙整信，方便你對帳收錢。</div></div>' +
+      '<div class="field"><label for="organizerEmail">你的 Email <span class="req">*</span></label>' +
+        '<input type="email" id="organizerEmail" placeholder="建團後管理連結會寄到這裡" required>' +
+        '<div class="tiny" style="margin-top:5px;">建好團會馬上寄一封信給你，裡面有管理連結——之後換手機、清快取都還找得回來。送單時也會副本一份給你對帳。</div></div>' +
       '<div class="field"><span class="field-label">取餐方式 <span class="req">*</span></span>' +
         '<div class="seg">' +
           '<input type="radio" name="fulfillment" id="f1" value="外送" checked><label for="f1">外送到辦公室</label>' +
@@ -176,8 +178,18 @@ document.getElementById('form').addEventListener('submit', function (e) {
     contactName: val('contactName'),
     contactPhone: val('contactPhone'),
     contactAvailableTime: val('contactAvailableTime'),
-    note: val('note')
+    note: val('note'),
+    baseUrl: location.href.replace(/[^/]*(\?.*)?$/, '')
   }).then(function (res) {
+    saveMyGroup({
+      id: res.sessionId,
+      token: res.adminToken,
+      company: val('company'),
+      organizer: val('organizer'),
+      deliveryDate: dateInput.value,
+      deadline: deadlineInput.value,
+      status: '收單中'
+    });
     const base = location.href.replace(/index\.html(\?.*)?$/, '').replace(/\?.*$/, '');
     const orderUrl = base + 'order.html?session=' + res.sessionId;
     const adminUrl = base + 'admin.html?session=' + res.sessionId + '&admin=' + res.adminToken;
@@ -196,7 +208,11 @@ document.getElementById('form').addEventListener('submit', function (e) {
       '<div class="card">' +
         '<div class="card-head"><span class="dot"></span><h2>② 你的管理連結（請留好）</h2></div>' +
         linkBox(adminUrl, 'adminUrl') +
-        '<div class="tiny" style="margin-top:8px;">只有這個連結能看到全部訂單、按下送單。建議先加到書籤。</div>' +
+        '<div class="tiny" style="margin-top:8px;">只有這個連結能看到全部訂單、按下送單。</div>' +
+        (res.mailed
+          ? '<div class="notice notice-good" style="margin:12px 0 0;"><span class="ico">📧</span><div>已經寄一份到 <strong>' +
+            escapeHtml(val('organizerEmail')) + '</strong>，關掉這頁也沒關係。</div></div>'
+          : '<div class="notice notice-warn" style="margin:12px 0 0;"><span class="ico">⚠️</span><div>這次沒能寄出通知信，請自己先把上面的管理連結存起來。</div></div>') +
       '</div>' +
       '<a class="btn btn-primary btn-block" style="text-decoration:none;text-align:center;display:block;" href="' + adminUrl + '">前往管理頁面</a>';
 
@@ -208,6 +224,71 @@ document.getElementById('form').addEventListener('submit', function (e) {
     btn.textContent = '建立揪團';
   });
 });
+/* ---------- 你開過的團（存在這台裝置的瀏覽器裡） ---------- */
+
+renderMyGroups();
+
+function renderMyGroups() {
+  const box = document.getElementById('myGroups');
+  const saved = loadMyGroups();
+  if (!saved.length) return;
+
+  draw(saved);
+
+  /* 跟後端確認一下目前狀態，避免顯示過期資訊 */
+  saved.slice(0, 3).forEach(function (g) {
+    apiGet('getAdminData', { session: g.id, token: g.token }).then(function (res) {
+      updateMyGroup(g.id, {
+        status: res.session.status,
+        deadline: res.session.deadline,
+        company: res.session.company,
+        deliveryDate: res.session.deliveryDate
+      });
+      draw(loadMyGroups());
+    }).catch(function () { /* 查不到就沿用本機那份 */ });
+  });
+
+  function draw(list) {
+    const items = list.slice(0, 3);
+    if (!items.length) { box.innerHTML = ''; return; }
+
+    box.innerHTML =
+      '<div class="card" style="border-color:var(--peach);">' +
+        '<div class="card-head"><span class="dot"></span><h2>你開過的團</h2>' +
+          '<span class="spacer"></span><span class="tiny">這台裝置記得的</span></div>' +
+        items.map(function (g) {
+          const left = g.deadline ? timeLeft(g.deadline) : null;
+          const sent = g.status === '已送單';
+          const badge = sent
+            ? '<span class="badge warn">已送單</span>'
+            : (left ? '<span class="badge">收單中</span>' : '<span class="badge warn">已截止</span>');
+          const when = g.deliveryDate ? fmtDate(g.deliveryDate) : '';
+          return '<div class="person" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div class="person-name">' + escapeHtml(g.company || '（未命名）') + '　' + badge + '</div>' +
+              '<div class="tiny">' + escapeHtml(when) +
+                (left && !sent ? '　剩 ' + left : '') + '</div>' +
+            '</div>' +
+            '<button class="btn btn-ghost btn-sm" data-go="' + escapeHtml(g.id) + '">回到管理頁</button>' +
+            '<button class="cart-x" data-forget="' + escapeHtml(g.id) + '" title="從這台裝置移除">×</button>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+
+    box.querySelectorAll('[data-go]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        const g = loadMyGroups().filter(function (x) { return x.id === b.dataset.go; })[0];
+        if (g) location.href = adminUrlFor(g.id, g.token);
+      });
+    });
+    box.querySelectorAll('[data-forget]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        forgetMyGroup(b.dataset.forget);
+        draw(loadMyGroups());
+      });
+    });
+  }
+}
 </script>
 </body>
 </html>

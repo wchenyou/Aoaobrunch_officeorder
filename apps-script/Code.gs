@@ -64,7 +64,8 @@ const SETTINGS_SEED = [
   ['店家外送電話', '04-2452-3022'],
   ['店家地址', '台中市西屯區河南路二段486號（嗷嗷早午餐）'],
   ['低消金額', 1000],
-  ['外送範圍公里數', 3]
+  ['外送範圍公里數', 3],
+  ['前端網址', '（選填）GitHub Pages 的網址，例如 https://帳號.github.io/repo/ ；留空的話會用建團當下前端傳來的網址']
 ];
 
 /* ============ 一次性初始化 ============ */
@@ -251,6 +252,9 @@ function createSession_(p) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.SESSIONS);
 
   if (!p.organizer) throw new Error('請填寫主揪姓名');
+  if (!p.organizerEmail || p.organizerEmail.indexOf('@') < 0) {
+    throw new Error('請填寫主揪 Email，管理連結會寄一份到這個信箱，之後才找得回來');
+  }
   if (!p.company || !p.taxId) throw new Error('公司名稱與統一編號為必填（不需要發票請在統編填「否」）');
   if (!p.contactName || !p.contactPhone) throw new Error('請填寫聯絡窗口姓名與電話');
   if (p.fulfillment === '外送' && !p.address) throw new Error('外送需要填寫外送地址');
@@ -284,9 +288,61 @@ function createSession_(p) {
     lock.releaseLock();
   }
 
-  // 注意：不在這裡組前端網址（Apps Script 不知道 GitHub Pages 的網址），
-  // 由前端自己用 sessionId／adminToken 組出 order.html／admin.html 的連結。
-  return { ok: true, sessionId: id, adminToken: token };
+  // 主揪常常貼完連結就把分頁關掉，等收團才回來，
+  // 所以建團當下就把管理連結寄一份到他的信箱，換裝置也找得回來。
+  let mailed = false;
+  try {
+    mailed = sendOrganizerLinks_(id, token, p);
+  } catch (err) {
+    // 寄信失敗不該讓建團整個失敗，前端會提醒主揪自己保存連結
+    Logger.log('寄送管理連結失敗：' + err.message);
+  }
+
+  // 前端網址由前端自己組（Apps Script 不知道 GitHub Pages 的網址）
+  return { ok: true, sessionId: id, adminToken: token, mailed: mailed };
+}
+
+/**
+ * 建團後寄一封信給主揪，內含點餐連結與管理連結。
+ * 網址優先用「設定」工作表裡的「前端網址」，沒填就用前端傳來的 baseUrl。
+ */
+function sendOrganizerLinks_(id, token, p) {
+  const settings = getSettingsMap_();
+  let base = String(settings['前端網址'] || '').trim();
+  if (base.indexOf('http') !== 0) base = String(p.baseUrl || '').trim();
+  if (base.indexOf('http') !== 0) return false;
+  if (base.slice(-1) !== '/') base += '/';
+
+  const orderUrl = base + 'order.html?session=' + encodeURIComponent(id);
+  const adminUrl = base + 'admin.html?session=' + encodeURIComponent(id) + '&admin=' + encodeURIComponent(token);
+
+  const lines = [
+    p.organizer + ' 你好，你的團開好了。',
+    '',
+    '這封信請留著，之後要收團、送單都靠它。',
+    '',
+    '── 分享給同事的點餐連結 ──',
+    orderUrl,
+    '',
+    '── 你的管理連結（請勿外流） ──',
+    adminUrl,
+    '只有這個連結能看到全部訂單、按下送單。',
+    '',
+    '── 這次的團 ──',
+    '公司：' + p.company,
+    '取餐方式：' + p.fulfillment,
+    '預訂日期：' + formatDate_(parseTaipeiDateTime_(p.deliveryDate)) + ' ' + (p.deliveryTime || ''),
+    '收單截止：' + Utilities.formatDate(parseTaipeiDateTime_(p.deadline), 'Asia/Taipei', 'M/d HH:mm'),
+    '',
+    '截止時間一到，同事就不能再點餐或修改，記得回管理連結按送單。'
+  ];
+
+  MailApp.sendEmail({
+    to: p.organizerEmail,
+    subject: '【嗷嗷團購】' + p.company + ' 的管理連結（' + formatDate_(parseTaipeiDateTime_(p.deliveryDate)) + '）',
+    body: lines.join('\n')
+  });
+  return true;
 }
 
 const TAIPEI_OFFSET_MS = 8 * 60 * 60 * 1000;

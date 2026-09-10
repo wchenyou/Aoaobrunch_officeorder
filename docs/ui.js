@@ -106,3 +106,56 @@ function centerMsg(title, desc) {
     '<h1>' + escapeHtml(title) + '</h1>' +
     '<p class="muted">' + escapeHtml(desc) + '</p></div>';
 }
+
+/* ==========================================================================
+   記住主揪自己開過的團
+   主揪把連結貼到群組後常常會把分頁關掉，等收團才回來，
+   所以在他自己的瀏覽器留一份紀錄，重新打開首頁就能一鍵回到管理頁。
+   （localStorage 只存在這台裝置，換裝置要靠建團時寄出的那封信。）
+   ========================================================================== */
+
+const MY_GROUPS_KEY = 'aoao_my_groups';
+const KEEP_DAYS = 14;
+
+function loadMyGroups() {
+  try {
+    const raw = localStorage.getItem(MY_GROUPS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return [];
+    // 太久以前的就不留了
+    const cutoff = Date.now() - KEEP_DAYS * 86400000;
+    return list.filter(function (g) { return g && g.id && g.token && (g.savedAt || 0) > cutoff; });
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveMyGroup(group) {
+  try {
+    const list = loadMyGroups().filter(function (g) { return g.id !== group.id; });
+    list.unshift(Object.assign({ savedAt: Date.now() }, group));
+    localStorage.setItem(MY_GROUPS_KEY, JSON.stringify(list.slice(0, 10)));
+  } catch (e) { /* 無痕模式或不給存，就算了 */ }
+}
+
+function updateMyGroup(id, patch) {
+  try {
+    const list = loadMyGroups().map(function (g) {
+      return g.id === id ? Object.assign({}, g, patch) : g;
+    });
+    localStorage.setItem(MY_GROUPS_KEY, JSON.stringify(list));
+  } catch (e) { /* 略過 */ }
+}
+
+function forgetMyGroup(id) {
+  try {
+    localStorage.setItem(MY_GROUPS_KEY, JSON.stringify(loadMyGroups().filter(function (g) { return g.id !== id; })));
+  } catch (e) { /* 略過 */ }
+}
+
+/** 由 sessionId + token 組出這個站台的管理連結 */
+function adminUrlFor(id, token) {
+  const base = location.href.replace(/[^/]*(\?.*)?$/, '');
+  return base + 'admin.html?session=' + encodeURIComponent(id) + '&admin=' + encodeURIComponent(token);
+}
