@@ -31,9 +31,9 @@ page.innerHTML =
 
   '<div class="notice notice-info" id="rules"><span class="ico">📌</span><div>載入店家規定中…</div></div>' +
 
-  '<form id="form">' +
+  '<form id="form"><div class="form-grid">' +
 
-    '<div class="card">' +
+    '<div class="card" id="cardWho">' +
       '<div class="card-head"><span class="dot"></span><h2>你是誰</h2></div>' +
       '<div class="field"><label for="organizer">主揪姓名 <span class="req">*</span></label>' +
         '<input type="text" id="organizer" placeholder="大家看得懂的稱呼" required></div>' +
@@ -47,7 +47,7 @@ page.innerHTML =
         '</div></div>' +
     '</div>' +
 
-    '<div class="card">' +
+    '<div class="card" id="cardWhen">' +
       '<div class="card-head"><span class="dot"></span><h2>什麼時候要</h2></div>' +
       '<div class="grid-2">' +
         '<div class="field"><label for="deliveryDate">預訂日期 <span class="req">*</span></label>' +
@@ -79,7 +79,7 @@ page.innerHTML =
         '</div></div>' +
     '</div>' +
 
-    '<div class="card">' +
+    '<div class="card" id="cardBill">' +
       '<div class="card-head"><span class="dot"></span><h2>發票與聯絡窗口</h2></div>' +
       '<div class="grid-2">' +
         '<div class="field"><label for="company">公司名稱 <span class="req">*</span></label>' +
@@ -100,11 +100,13 @@ page.innerHTML =
         '<textarea id="note" placeholder="選填"></textarea></div>' +
     '</div>' +
 
-    '<button type="submit" class="btn btn-primary btn-block" id="submitBtn">建立揪團</button>' +
-    '<div id="errorMsg"></div>' +
-  '</form>' +
+    '<div class="full">' +
+      '<button type="submit" class="btn btn-primary btn-block" id="submitBtn">建立揪團</button>' +
+      '<div id="errorMsg"></div>' +
+    '</div>' +
+  '</div></form>' +
 
-  '<div id="result"></div>' +
+  '<div id="result" class="narrow"></div>' +
   renderFoot();
 
 /* 店家規定 */

@@ -49,7 +49,7 @@ function render(existing) {
 
   let html =
     '<h1>' + escapeHtml(SESSION.organizer) + ' 揪的團 🐾</h1>' +
-    '<div class="card" style="padding:14px 18px;">' +
+    '<div class="card summary" style="padding:14px 18px;">' +
       '<dl style="margin:0;">' +
         row('取餐方式', SESSION.fulfillment) +
         row('預訂日期', fmtDate(SESSION.deliveryDate) + '　' + escapeHtml(SESSION.deliveryTime || '')) +
@@ -69,37 +69,40 @@ function render(existing) {
     return;
   }
 
-  /* 分類導覽 */
   const cats = [];
   MENU.forEach(function (m) { if (cats.indexOf(m.category) < 0) cats.push(m.category); });
-  html += '<nav class="chipnav">' + cats.map(function (c, i) {
-    return '<a href="#cat' + i + '">' + escapeHtml(c) + '</a>';
-  }).join('') + '</nav>';
 
-  /* 菜單 */
-  html += '<div id="menuArea"></div>';
-
-  /* 你的訂單 */
+  /* 主欄（菜單）＋ 側欄（購物車、姓名、送出）
+     桌機是左右雙欄、手機自然堆疊成上下 */
   html +=
-    '<div class="card" id="cartCard">' +
-      '<div class="card-head"><span class="dot"></span><h2>你點的東西</h2><span class="spacer"></span>' +
-        '<span class="tiny" id="cartHint"></span></div>' +
-      '<div id="cartList"></div>' +
+    '<div class="layout">' +
+      '<main class="col-main">' +
+        chipnavHtml(cats) +
+        '<div id="menuArea"></div>' +
+      '</main>' +
+      '<aside class="col-side">' +
+        '<div class="card" id="cartCard">' +
+          '<div class="card-head"><span class="dot"></span><h2>你點的東西</h2><span class="spacer"></span>' +
+            '<span class="tiny" id="cartHint"></span></div>' +
+          '<div id="cartList"></div>' +
+        '</div>' +
+        '<div class="card">' +
+          '<div class="card-head"><span class="dot"></span><h2>留個名字讓主揪對得到</h2></div>' +
+          '<div class="field"><label for="name">姓名或分機 <span class="req">*</span></label>' +
+            '<input type="text" id="name" placeholder="例如 Aaron（3樓）"></div>' +
+          '<div class="field" style="margin-bottom:0;"><label for="globalNote">整筆訂單的備註</label>' +
+            '<textarea id="globalNote" placeholder="選填，例如不要辣、對某食材過敏"></textarea></div>' +
+        '</div>' +
+        '<button class="btn btn-primary btn-block side-submit" data-submit>送出訂單</button>' +
+        '<div id="msgArea"></div>' +
+      '</aside>' +
     '</div>' +
-    '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>留個名字讓主揪對得到</h2></div>' +
-      '<div class="field"><label for="name">姓名或分機 <span class="req">*</span></label>' +
-        '<input type="text" id="name" placeholder="例如 Aaron（3樓）"></div>' +
-      '<div class="field" style="margin-bottom:0;"><label for="globalNote">整筆訂單的備註</label>' +
-        '<textarea id="globalNote" placeholder="選填，例如不要辣、對某食材過敏"></textarea></div>' +
-    '</div>' +
-    '<div id="msgArea"></div>' +
     renderFoot() +
     '<div class="cartbar">' +
       '<div class="cartbar-info" id="barInfo" style="cursor:pointer;" title="看看點了什麼">' +
         '<div class="cartbar-count" id="barCount">還沒選東西</div>' +
         '<div class="cartbar-total">$<span id="barTotal">0</span></div></div>' +
-      '<button class="btn btn-primary" id="submitBtn">送出訂單</button>' +
+      '<button class="btn btn-primary" data-submit>送出訂單</button>' +
     '</div>';
 
   page.innerHTML = html;
@@ -115,17 +118,32 @@ function render(existing) {
     cart = existing.map(function (o) {
       return { code: o.itemCode, name: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: Number(o.qty), price: Number(o.price) };
     });
-    document.getElementById('submitBtn').textContent = '更新訂單';
+    setSubmit('更新訂單', null);
     document.getElementById('cartHint').textContent = '修改模式';
   }
 
   renderCart();
-  document.getElementById('submitBtn').addEventListener('click', submit);
+  submitBtns().forEach(function (b) { b.addEventListener('click', submit); });
   setInterval(tickCountdown, 30000);
 }
 
 function row(k, v) {
   return '<div class="meta-row"><dt>' + k + '</dt><dd>' + v + '</dd></div>';
+}
+
+function chipnavHtml(cats) {
+  return '<nav class="chipnav">' + cats.map(function (c, i) {
+    return '<a href="#cat' + i + '">' + escapeHtml(c) + '</a>';
+  }).join('') + '</nav>';
+}
+
+/* 手機的浮動列與桌機側欄各有一顆送出鈕，狀態要一起更新 */
+function submitBtns() { return [].slice.call(document.querySelectorAll('[data-submit]')); }
+function setSubmit(label, disabled) {
+  submitBtns().forEach(function (b) {
+    if (label !== null) b.innerHTML = label;
+    if (disabled !== null) b.disabled = disabled;
+  });
 }
 
 function tickCountdown() {
@@ -286,6 +304,14 @@ function renderCart() {
   }
   const total = cart.reduce(function (s, l) { return s + l.price * l.qty; }, 0);
   const count = cart.reduce(function (s, l) { return s + l.qty; }, 0);
+
+  /* 桌機看不到底部浮動列，所以小計要顯示在購物車卡片裡 */
+  if (cart.length) {
+    list.insertAdjacentHTML('beforeend',
+      '<div class="cart-total"><span>共 ' + count + ' 份</span>' +
+      '<span class="amount">$' + total + '</span></div>');
+  }
+
   document.getElementById('barTotal').textContent = total;
   document.getElementById('barCount').textContent = count ? ('共 ' + count + ' 份') : '還沒選東西';
 }
@@ -293,7 +319,6 @@ function renderCart() {
 /* ---------- 送出 ---------- */
 
 function submit() {
-  const btn = document.getElementById('submitBtn');
   const name = document.getElementById('name').value.trim();
   const msgArea = document.getElementById('msgArea');
   if (!name) {
@@ -309,8 +334,7 @@ function submit() {
   const globalNote = document.getElementById('globalNote').value.trim();
   const items = cart.map(function (l) { return Object.assign({}, l, { note: globalNote }); });
 
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>';
+  setSubmit('<span class="spin"></span>', true);
   msgArea.innerHTML = '';
 
   apiPost(EDIT_CODE ? 'updateOrder' : 'submitOrder', {
@@ -325,15 +349,13 @@ function submit() {
         linkBox(editUrl, 'editUrl') +
         '<button class="btn btn-danger btn-block btn-sm" style="margin-top:12px;" id="cancelBtn">取消這筆訂單</button>' +
       '</div>';
-    btn.textContent = '更新訂單';
-    btn.disabled = false;
+    setSubmit('更新訂單', false);
     document.getElementById('cartHint').textContent = '修改模式';
     document.getElementById('cancelBtn').addEventListener('click', cancelOrder);
     msgArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }).catch(function (err) {
     msgArea.innerHTML = notice('warn', '⚠️', err.message || String(err));
-    btn.disabled = false;
-    btn.textContent = EDIT_CODE ? '更新訂單' : '送出訂單';
+    setSubmit(EDIT_CODE ? '更新訂單' : '送出訂單', false);
   });
 }
 

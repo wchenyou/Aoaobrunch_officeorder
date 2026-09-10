@@ -66,25 +66,32 @@ function buildShell() {
       '<div class="tiny" id="deadlineLine" style="margin-top:9px;"></div>' +
     '</div>' +
 
-    '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>目前收到的訂單</h2><span class="spacer"></span>' +
-        '<button class="btn btn-ghost btn-sm" id="refreshBtn">重新整理</button></div>' +
-      '<div id="orderList"></div>' +
-      '<div class="tiny" style="margin-top:12px;text-align:center;">每 20 秒會自動更新一次</div>' +
+    /* 桌機雙欄：左邊訂單、右邊訂購資訊與送單 */
+    '<div class="layout">' +
+      '<main class="col-main">' +
+        '<div class="card">' +
+          '<div class="card-head"><span class="dot"></span><h2>目前收到的訂單</h2><span class="spacer"></span>' +
+            '<button class="btn btn-ghost btn-sm" id="refreshBtn">重新整理</button></div>' +
+          '<div id="orderList"></div>' +
+          '<div class="tiny" style="margin-top:12px;text-align:center;">每 20 秒會自動更新一次</div>' +
+        '</div>' +
+      '</main>' +
+      '<aside class="col-side">' +
+        '<div class="card">' +
+          '<div class="card-head"><span class="dot"></span><h2>這次的訂購資訊</h2></div>' +
+          '<dl id="metaList" style="margin:0;"></dl>' +
+        '</div>' +
+        '<button class="btn btn-primary btn-block side-submit" data-finalize>送單並通知店家</button>' +
+        '<div id="msgArea"></div>' +
+      '</aside>' +
     '</div>' +
 
-    '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>這次的訂購資訊</h2></div>' +
-      '<dl id="metaList" style="margin:0;"></dl>' +
-    '</div>' +
-
-    '<div id="msgArea"></div>' +
     renderFoot() +
 
     '<div class="cartbar">' +
       '<div class="cartbar-info"><div class="cartbar-count" id="barNote">確認後一次通知店家</div>' +
         '<div class="cartbar-total">$<span id="barTotal">0</span></div></div>' +
-      '<button class="btn btn-primary" id="finalizeBtn">送單</button>' +
+      '<button class="btn btn-primary" data-finalize>送單</button>' +
     '</div>';
 
   document.getElementById('refreshBtn').addEventListener('click', function () {
@@ -93,7 +100,16 @@ function buildShell() {
     load().then(function () { b.disabled = false; b.textContent = '重新整理'; });
   });
 
-  document.getElementById('finalizeBtn').addEventListener('click', finalize);
+  finalizeBtns().forEach(function (b) { b.addEventListener('click', finalize); });
+}
+
+/* 手機浮動列與桌機側欄各有一顆送單鈕 */
+function finalizeBtns() { return [].slice.call(document.querySelectorAll('[data-finalize]')); }
+function setFinalize(label, disabled) {
+  finalizeBtns().forEach(function (b) {
+    if (label !== null) b.innerHTML = label;
+    if (disabled !== null) b.disabled = disabled;
+  });
 }
 
 function renderAll() {
@@ -182,10 +198,8 @@ function renderAll() {
   }).join('');
 
   /* 送單按鈕 */
-  const btn = document.getElementById('finalizeBtn');
   if (sent) {
-    btn.disabled = true;
-    btn.textContent = '已送單';
+    setFinalize('已送單', true);
     document.getElementById('barNote').textContent = '已通知店家';
   }
 }
@@ -200,9 +214,7 @@ function finalize() {
   }
   if (!confirm('確定要送單嗎？\n送出後同事就不能再點餐或修改，店家會收到一封彙整好的訂單信。' + warn)) return;
 
-  const btn = document.getElementById('finalizeBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span>';
+  setFinalize('<span class="spin"></span>', true);
 
   apiPost('finalizeSession', { sessionId: SESSION_ID, token: TOKEN }).then(function (res) {
     SESSION.status = '已送單';
@@ -214,8 +226,7 @@ function finalize() {
   }).catch(function (err) {
     document.getElementById('msgArea').innerHTML =
       '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
-    btn.disabled = false;
-    btn.textContent = '送單';
+    setFinalize('送單', false);
   });
 }
 </script>

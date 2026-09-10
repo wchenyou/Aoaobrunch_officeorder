@@ -654,3 +654,150 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ==========================================================================
+   RWD — 手機優先，平板加寬，桌機改成雙欄
+   ========================================================================== */
+
+/* 主欄 + 側欄的容器；手機時自然變成單欄堆疊 */
+.layout { display: block; }
+.col-side > .card:last-of-type { margin-bottom: 14px; }
+
+/* 購物車 / 送單列的小計 */
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 2px solid var(--border);
+  font-weight: 800;
+}
+.cart-total .amount { font-family: var(--font-num); font-size: 21px; color: var(--orange-deep); }
+
+/* 桌機版的送單按鈕：手機隱藏（手機用底部浮動列） */
+.side-submit { display: none; }
+
+/* ---------- 小手機 ---------- */
+@media (max-width: 379px) {
+  body { font-size: 14.5px; }
+  .wrap { padding: 18px 14px 110px; }
+  h1 { font-size: 19px; }
+  .card { padding: 15px; border-radius: 18px; }
+  .price-badge { min-width: 56px; height: 48px; }
+  .price-badge .p { font-size: 15.5px; }
+  .item-row { padding: 12px 13px; gap: 10px; }
+  .cartbar { padding-left: 16px; }
+  .cartbar-total { font-size: 17px; }
+  .stat-num { font-size: 20px; }
+  .stat { padding: 12px 8px; }
+  .chip, .seg label { padding: 7px 12px; font-size: 13px; }
+}
+
+/* ---------- 平板 ---------- */
+@media (min-width: 600px) {
+  body { font-size: 15.5px; }
+  .wrap { max-width: 760px; padding: 28px 24px 130px; }
+  .topbar { padding: 22px 24px 30px; }
+  .topbar-inner { max-width: 760px; }
+  .paw { width: 44px; height: 44px; }
+  .brand { font-size: 21px; }
+  h1 { font-size: 25px; }
+  .card { padding: 22px; }
+  .item-row { padding: 16px 18px; }
+  .item-panel { padding: 4px 18px 18px; }
+  .stat-num { font-size: 28px; }
+  .stat { padding: 18px 14px; }
+  .cat-title { font-size: 17.5px; margin-top: 28px; }
+  .price-badge { min-width: 70px; height: 58px; }
+  .price-badge .p { font-size: 19px; }
+  .price-badge .p-dual { font-size: 13.5px; }
+  .cartbar { padding: 12px 12px 12px 24px; }
+  .cartbar-total { font-size: 21px; }
+}
+
+/* ---------- 桌機：雙欄 ---------- */
+@media (min-width: 900px) {
+  .wrap { max-width: 1080px; padding: 32px 32px 60px; }
+  .topbar { padding: 24px 32px 32px; }
+  .topbar-inner { max-width: 1080px; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 26px;
+    align-items: start;
+  }
+
+  .col-side {
+    position: sticky;
+    top: 24px;
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    padding-bottom: 4px;
+  }
+
+  /* 桌機不需要底部浮動列，側欄就看得到全部資訊 */
+  .cartbar { display: none; }
+  .side-submit { display: block; }
+
+  /* 分類導覽貼在主欄上方 */
+  .chipnav {
+    margin: 0 0 4px;
+    padding: 2px 0 12px;
+    background: linear-gradient(var(--cream) 68%, transparent);
+  }
+
+  /* 建立揪團的表單改成雙欄 */
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .form-grid > .card { margin-bottom: 0; }
+  #cardWho  { grid-column: 1; grid-row: 1; }
+  #cardWhen { grid-column: 2; grid-row: 1 / span 2; }
+  #cardBill { grid-column: 1; grid-row: 2; }
+  .form-grid > .full { grid-column: 1 / -1; }
+
+  /* 建立成功後的結果頁不需要那麼寬 */
+  .narrow { max-width: 620px; }
+
+  .stat-num { font-size: 30px; }
+  .empty { padding: 40px 20px; }
+}
+
+/* ---------- 大桌機 ---------- */
+@media (min-width: 1200px) {
+  .wrap { max-width: 1140px; }
+  .topbar-inner { max-width: 1140px; }
+  .layout { grid-template-columns: minmax(0, 1fr) 370px; gap: 30px; }
+}
+
+/* 滑鼠裝置才做 hover 效果，避免手機點擊後殘留樣式 */
+@media (hover: none) {
+  .item-row:hover .item-name { color: inherit; }
+  .chip:hover, .seg label:hover { border-color: var(--border); }
+}
+
+/* 建立揪團頁：表單在桌機不要拉得太寬，結果卡片再收窄一點 */
+@media (min-width: 900px) {
+  .form-grid { max-width: 900px; margin: 0 auto; }
+  #rules, #page > h1, #page > p.muted { max-width: 900px; margin-left: auto; margin-right: auto; }
+  .narrow { max-width: 620px; margin: 0 auto; }
+}
+
+/* 桌機時，頁面最上方的揪團摘要改成橫向三欄，不要左右拉太開 */
+@media (min-width: 900px) {
+  .summary dl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 28px; }
+  .summary .meta-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    border-bottom: none;
+    padding: 6px 0;
+  }
+  .summary .meta-row dd { text-align: left; font-size: 15px; }
+}
