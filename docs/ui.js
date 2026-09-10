@@ -159,3 +159,40 @@ function adminUrlFor(id, token) {
   const base = location.href.replace(/[^/]*(\?.*)?$/, '');
   return base + 'admin.html?session=' + encodeURIComponent(id) + '&admin=' + encodeURIComponent(token);
 }
+
+/* ==========================================================================
+   同事還沒送出的購物車草稿
+   選到一半把分頁關掉、或不小心重新整理，回來時不用重選。
+   一個揪團一份草稿，只存在這台裝置。
+   ========================================================================== */
+
+function cartKey(sessionId) { return 'aoao_cart_' + sessionId; }
+
+function saveCartDraft(sessionId, data) {
+  try {
+    localStorage.setItem(cartKey(sessionId), JSON.stringify(Object.assign({ savedAt: Date.now() }, data)));
+  } catch (e) { /* 無痕模式就算了 */ }
+}
+
+function loadCartDraft(sessionId) {
+  try {
+    const raw = localStorage.getItem(cartKey(sessionId));
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d || Date.now() - (d.savedAt || 0) > KEEP_DAYS * 86400000) return null;
+    return d;
+  } catch (e) { return null; }
+}
+
+function clearCartDraft(sessionId) {
+  try { localStorage.removeItem(cartKey(sessionId)); } catch (e) { /* 略過 */ }
+}
+
+/** 「剛剛」「3 分鐘前」這種相對時間 */
+function timeAgo(ts) {
+  const sec = Math.floor((Date.now() - ts) / 1000);
+  if (sec < 45) return '剛剛';
+  const min = Math.round(sec / 60);
+  if (min < 60) return min + ' 分鐘前';
+  return Math.round(min / 60) + ' 小時前';
+}

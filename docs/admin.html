@@ -22,7 +22,7 @@ const params = new URLSearchParams(location.search);
 const SESSION_ID = params.get('session') || '';
 const TOKEN = params.get('admin') || '';
 
-let SESSION = null, SETTINGS = {}, orders = [], built = false;
+let SESSION = null, SETTINGS = {}, orders = [], built = false, lastUpdated = 0;
 const page = document.getElementById('page');
 document.getElementById('top').innerHTML = renderTopbar('揪團管理');
 
@@ -37,6 +37,7 @@ function load() {
   return apiGet('getAdminData', { session: SESSION_ID, token: TOKEN })
     .then(function (res) {
       SESSION = res.session; orders = res.orders || []; SETTINGS = res.settings || {};
+      lastUpdated = Date.now();
       if (!built) {
         buildShell();
         built = true;
@@ -78,7 +79,10 @@ function buildShell() {
           '<div class="card-head"><span class="dot"></span><h2>目前收到的訂單</h2><span class="spacer"></span>' +
             '<button class="btn btn-ghost btn-sm" id="refreshBtn">重新整理</button></div>' +
           '<div id="orderList"></div>' +
-          '<div class="tiny" style="margin-top:12px;text-align:center;">每 20 秒會自動更新一次</div>' +
+          '<div class="refresh-row">' +
+            '<span class="tiny" id="updatedAt">更新中…</span>' +
+            '<button class="btn btn-ghost btn-sm" id="refreshBtn2">立即更新</button>' +
+          '</div>' +
         '</div>' +
       '</main>' +
       '<aside class="col-side">' +
@@ -99,13 +103,33 @@ function buildShell() {
       '<button class="btn btn-primary" data-finalize>送單</button>' +
     '</div>';
 
-  document.getElementById('refreshBtn').addEventListener('click', function () {
-    const b = this;
-    b.disabled = true; b.innerHTML = '<span class="spin"></span>';
-    load().then(function () { b.disabled = false; b.textContent = '重新整理'; });
+  [['refreshBtn', '重新整理'], ['refreshBtn2', '立即更新']].forEach(function (pair) {
+    const btn = document.getElementById(pair[0]);
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin"></span>';
+      load().then(function () {
+        btn.disabled = false;
+        btn.textContent = pair[1];
+      });
+    });
   });
 
+  /* 切回這個分頁時順手更新一次，不用等下一輪 20 秒 */
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && Date.now() - lastUpdated > 5000) load();
+  });
+
+  /* 「剛剛 / 3 分鐘前」要會自己往前走 */
+  setInterval(paintUpdatedAt, 15000);
+
   finalizeBtns().forEach(function (b) { b.addEventListener('click', finalize); });
+}
+
+function paintUpdatedAt() {
+  const el = document.getElementById('updatedAt');
+  if (el && lastUpdated) el.textContent = '最後更新 ' + timeAgo(lastUpdated) + '　•　每 20 秒自動更新';
 }
 
 function rememberThisGroup() {
@@ -213,6 +237,8 @@ function renderAll() {
   document.getElementById('metaList').innerHTML = meta.map(function (m) {
     return '<div class="meta-row"><dt>' + escapeHtml(m[0]) + '</dt><dd>' + escapeHtml(m[1] || '—') + '</dd></div>';
   }).join('');
+
+  paintUpdatedAt();
 
   /* 送單按鈕 */
   if (sent) {

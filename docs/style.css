@@ -801,3 +801,15 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
   }
   .summary .meta-row dd { text-align: left; font-size: 15px; }
 }
+
+/* 訂單列表下方的「最後更新 + 立即更新」 */
+.refresh-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border);
+}

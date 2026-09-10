@@ -22,6 +22,12 @@ const params = new URLSearchParams(location.search);
 const SESSION_ID = params.get('session') || '';
 let EDIT_CODE = params.get('edit') || '';
 
+/* 這台裝置上次在這個團留下的東西：選到一半的購物車，或已經送出的訂單編號。
+   如果網址沒帶 edit，但本機記得訂單編號，就直接用它跟後端要那筆訂單， */
+/* 這樣同事重開連結會回到「修改模式」，而不是重點一次。 */
+const DRAFT = loadCartDraft(SESSION_ID);
+if (!EDIT_CODE && DRAFT && DRAFT.orderCode) EDIT_CODE = DRAFT.orderCode;
+
 let MENU = [], SESSION = null, SETTINGS = {}, cart = [];
 const page = document.getElementById('page');
 document.getElementById('top').innerHTML = renderTopbar('辦公室團購');
@@ -63,11 +69,14 @@ function render(existing) {
   }
 
   if (closed) {
+    clearCartDraft(SESSION_ID);
     html += '<div class="notice notice-warn"><span class="ico">⏰</span><div><strong>這團已經截止收單了</strong><br>' +
       '沒辦法再送出或修改訂單，有需要的話直接找主揪 ' + escapeHtml(SESSION.organizer) + ' 喬。</div></div>' + renderFoot();
     page.innerHTML = html;
     return;
   }
+
+  html += '<div id="topNotice"></div>';
 
   const cats = [];
   MENU.forEach(function (m) { if (cats.indexOf(m.category) < 0) cats.push(m.category); });
@@ -113,6 +122,7 @@ function render(existing) {
   });
 
   if (EDIT_CODE && existing.length) {
+    /* 已經送出過：以伺服器上的內容為準 */
     document.getElementById('name').value = existing[0].name;
     document.getElementById('globalNote').value = existing[0].note || '';
     cart = existing.map(function (o) {
@@ -120,7 +130,38 @@ function render(existing) {
     });
     setSubmit('更新訂單', null);
     document.getElementById('cartHint').textContent = '修改模式';
+    if (!params.get('edit')) {
+      /* 這筆是靠這台裝置的記憶找回來的，不是從網址帶進來的。
+         同事共用一台電腦或平板時可能不是同一個人，所以留一個逃生門。 */
+      document.getElementById('topNotice').innerHTML =
+        '<div class="notice notice-good"><span class="ico">📝</span><div>' +
+          '找到<strong>' + escapeHtml(existing[0].name) + '</strong>先前送出的訂單，直接改就好，改完按「更新訂單」。' +
+          '<div style="margin-top:8px;"><button type="button" class="btn btn-ghost btn-sm" id="notMeBtn">不是我的，我要重點一筆</button></div>' +
+        '</div></div>';
+      document.getElementById('notMeBtn').addEventListener('click', function () {
+        clearCartDraft(SESSION_ID);
+        location.href = location.pathname + '?session=' + encodeURIComponent(SESSION_ID);
+      });
+    }
+  } else {
+    /* 沒送出過：把選到一半的草稿還原回來 */
+    EDIT_CODE = '';
+    if (DRAFT) {
+      if (DRAFT.name) document.getElementById('name').value = DRAFT.name;
+      if (DRAFT.note) document.getElementById('globalNote').value = DRAFT.note;
+      if (DRAFT.items && DRAFT.items.length) {
+        cart = DRAFT.items;
+        document.getElementById('cartHint').textContent = '上次選到一半的';
+        document.getElementById('topNotice').innerHTML =
+          notice('info', '🐾', '幫你留著上次選到一半的內容，確認一下就可以送出了。');
+      }
+    }
   }
+
+  /* 姓名和備註改動時也一起存草稿 */
+  ['name', 'globalNote'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', persistDraft);
+  });
 
   renderCart();
   submitBtns().forEach(function (b) { b.addEventListener('click', submit); });
@@ -304,6 +345,7 @@ function renderCart() {
   }
   const total = cart.reduce(function (s, l) { return s + l.price * l.qty; }, 0);
   const count = cart.reduce(function (s, l) { return s + l.qty; }, 0);
+  persistDraft();
 
   /* 桌機看不到底部浮動列，所以小計要顯示在購物車卡片裡 */
   if (cart.length) {
@@ -314,6 +356,18 @@ function renderCart() {
 
   document.getElementById('barTotal').textContent = total;
   document.getElementById('barCount').textContent = count ? ('共 ' + count + ' 份') : '還沒選東西';
+}
+
+/** 把目前的購物車、姓名、備註存回這台裝置 */
+function persistDraft() {
+  const nameEl = document.getElementById('name');
+  if (!nameEl) return;
+  saveCartDraft(SESSION_ID, {
+    items: cart,
+    name: nameEl.value,
+    note: document.getElementById('globalNote').value,
+    orderCode: EDIT_CODE || ''
+  });
 }
 
 /* ---------- 送出 ---------- */
@@ -341,6 +395,9 @@ function submit() {
     sessionId: SESSION_ID, name: name, items: items, orderCode: EDIT_CODE
   }).then(function (res) {
     EDIT_CODE = res.orderCode;
+    persistDraft();
+    const topNotice = document.getElementById('topNotice');
+    if (topNotice) topNotice.innerHTML = '';
     const editUrl = location.origin + location.pathname + '?session=' + SESSION_ID + '&edit=' + EDIT_CODE;
     msgArea.innerHTML =
       '<div class="card" style="border-color:var(--leaf);">' +
@@ -362,6 +419,7 @@ function submit() {
 function cancelOrder() {
   if (!confirm('確定要取消這筆訂單嗎？')) return;
   apiPost('cancelOrder', { sessionId: SESSION_ID, orderCode: EDIT_CODE }).then(function () {
+    clearCartDraft(SESSION_ID);
     page.innerHTML = centerMsg('訂單已取消', '如果改變主意，重新打開主揪給的點餐連結再點一次就好。');
     document.querySelectorAll('.cartbar').forEach(function (b) { b.remove(); });
   }).catch(function (err) { alert(err.message || String(err)); });
