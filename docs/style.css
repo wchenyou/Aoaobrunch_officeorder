@@ -166,7 +166,11 @@ p:last-child { margin-bottom: 0; }
   align-items: center;
   gap: 8px;
   margin-bottom: 14px;
+  /* 保險：標題本身很長、又帶了一顆按鈕時，寧可整顆按鈕掉到下一行，
+     也不要標題文字跟按鈕文字各自被擠到斷成兩行、變得很難讀。 */
+  flex-wrap: wrap;
 }
+.card-head h2 { min-width: 0; }
 
 .card-head .dot {
   width: 7px; height: 7px;

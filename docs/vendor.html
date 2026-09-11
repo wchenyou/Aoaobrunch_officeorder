@@ -97,27 +97,20 @@ function todayStr(offsetDays) {
 function renderShell() {
   page.innerHTML =
     '<h1>店家後台 🐾</h1>' +
+    /* 登出、開啟通知都是「帳號/裝置層級」的控制項，放在最右上角同一列，
+       跟下面分頁列（待處理／依日期查詢）的內容操作分開。按鈕文字都
+       盡量短，手機寬度也不會擠成兩行。 */
     '<div class="vendor-topbar">' +
       '<div class="seg">' +
         '<input type="radio" name="vtab" id="vtabPending" checked><label for="vtabPending">📥 待處理訂單</label>' +
         '<input type="radio" name="vtab" id="vtabHistory"><label for="vtabHistory">🔍 依日期查詢</label>' +
       '</div>' +
-      '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button>' +
-    '</div>' +
-
-    /* 這是一個「設定」，跟上面分頁列（待處理／依日期查詢）或登出不是
-       同一類東西，硬塞在同一列會看起來很突兀，所以獨立成自己的一張
-       卡片，標籤／說明／開關放在一起，意思才清楚。VAPID 金鑰沒設定
-       時這張卡片整個不會出現（見 initPushUI）。 */
-    '<div class="card" id="pushCard" hidden style="padding:14px 18px;">' +
-      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
-        '<div style="flex:1;min-width:200px;">' +
-          '<strong>🔔 新訂單通知</strong>' +
-          '<div class="tiny" id="pushHint" style="margin-top:2px;">有新訂單送來時，這台裝置會跳系統通知。</div>' +
-        '</div>' +
-        '<button class="btn btn-ghost btn-sm" id="pushToggleBtn"></button>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+        '<button class="btn btn-ghost btn-sm" id="pushToggleBtn" hidden style="white-space:nowrap;"></button>' +
+        '<button class="btn btn-ghost btn-sm" id="logoutBtn" style="white-space:nowrap;">登出</button>' +
       '</div>' +
     '</div>' +
+    '<div class="tiny" id="pushHint" style="margin:-10px 0 16px;"></div>' +
 
     '<div id="pendingPanel"></div>' +
     '<div id="historyPanel" hidden></div>';
@@ -139,16 +132,14 @@ function renderShell() {
    權限請求視窗。 */
 
 function initPushUI() {
-  const card = document.getElementById('pushCard');
+  const btn = document.getElementById('pushToggleBtn');
   const hint = document.getElementById('pushHint');
-  if (!card) return;
+  if (!btn) return;
 
-  if (!VAPID_PUBLIC_KEY) return; // 後端還沒設定 VAPID 金鑰，功能還沒開放，整張卡片都不出現
-  card.hidden = false;
+  if (!VAPID_PUBLIC_KEY) return; // 後端還沒設定 VAPID 金鑰，功能還沒開放，按鈕不會出現
 
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     hint.textContent = '📱 這個瀏覽器目前不支援通知（iPhone 的話，要先把這個網址加到主畫面才能用）。';
-    document.getElementById('pushToggleBtn').hidden = true;
     return;
   }
 
@@ -186,9 +177,9 @@ function paintPushBtn(subscribed) {
     hint.textContent = '這台裝置有新訂單送來時會跳系統通知。';
     btn.onclick = disablePush;
   } else {
-    btn.textContent = '開啟';
+    btn.textContent = '🔔 開啟通知';
     btn.title = '';
-    hint.textContent = '有新訂單送來時，這台裝置會跳系統通知。';
+    hint.textContent = '開啟後，有新訂單送來時這台裝置會跳系統通知。';
     btn.onclick = enablePush;
   }
 }
@@ -255,10 +246,10 @@ function renderPendingShell() {
   el.innerHTML =
     '<div class="section-head">' +
       '<h2>📥 待處理訂單</h2>' +
-      '<span class="tiny">已經送單、但還沒標記完成的團，不限日期，全部都在這裡</span>' +
       '<span class="spacer"></span>' +
-      '<button class="btn btn-ghost btn-sm" id="pendingRefreshBtn">重新整理</button>' +
+      '<button class="btn btn-ghost btn-sm" id="pendingRefreshBtn" style="white-space:nowrap;">重新整理</button>' +
     '</div>' +
+    '<div class="tiny" style="margin:-6px 0 12px;">已經送單、但還沒標記完成的團，不限日期，全部都在這裡</div>' +
     '<div id="pendingList"></div>';
   document.getElementById('pendingRefreshBtn').addEventListener('click', loadPending);
 }

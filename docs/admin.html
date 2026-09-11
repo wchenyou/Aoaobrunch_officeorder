@@ -81,7 +81,7 @@ function buildShell() {
       '<div id="minOrderCard"></div>' +
       '<div class="card">' +
         '<div class="card-head"><span class="dot"></span><h2>分享給同事的點餐連結</h2><span class="spacer"></span>' +
-          '<a class="btn btn-ghost btn-sm" style="text-decoration:none;" href="' + orderUrl + '">🐾 主揪自己的點餐連結</a></div>' +
+          '<a class="btn btn-ghost btn-sm" style="text-decoration:none;white-space:nowrap;" href="' + orderUrl + '">🐾 我也要點餐</a></div>' +
         linkBox(orderUrl, 'shareUrl') +
         '<div class="tiny" id="deadlineLine" style="margin-top:9px;"></div>' +
       '</div>' +
@@ -92,8 +92,8 @@ function buildShell() {
       '<main class="col-main">' +
         '<div class="card">' +
           '<div class="card-head"><span class="dot"></span><h2>目前收到的訂單</h2><span class="spacer"></span>' +
-            '<span class="tiny" id="updatedAt">更新中…</span>' +
-            '<button class="btn btn-ghost btn-sm" id="refreshBtn">立即更新</button></div>' +
+            '<button class="btn btn-ghost btn-sm" id="refreshBtn" style="white-space:nowrap;">立即更新</button></div>' +
+          '<div class="tiny" id="updatedAt" style="margin:-6px 0 12px;">更新中…</div>' +
           '<div id="orderList"></div>' +
         '</div>' +
       '</main>' +
