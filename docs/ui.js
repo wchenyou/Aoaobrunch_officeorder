@@ -101,60 +101,19 @@ document.addEventListener('click', function (e) {
 });
 
 /* ==========================================================================
-   完整菜單——發起團購頁、點餐頁共用
-   直接整份攤開來，不用先點一下才看得到。
-   有拍照的品項（目前是 4 款主餐）用照片格子呈現，照片可以點下去放大看；
-   沒拍照的（飲料）用精簡文字列表，不然 20 幾個空格子只會很醜。
+   查看菜單——發起團購頁、點餐頁共用
+   就一顆按鈕，點下去用大圖看店家的完整菜單相片（同一張圖，不用另外維護）。
    ========================================================================== */
 
-function menuPreviewSection(menu) {
-  const list = menu || [];
-  if (!list.length) return '';
-  const cats = [];
-  const byCat = {};
-  list.forEach(function (m) {
-    if (!byCat[m.category]) { byCat[m.category] = []; cats.push(m.category); }
-    byCat[m.category].push(m);
-  });
+const MENU_PHOTO_URL = 'images/menu/full-menu.jpg';
 
-  return (
-    '<div class="menu-preview">' +
-      '<div class="menu-preview-head">🍽️ 菜單先看一輪</div>' +
-      cats.map(function (cat) {
-        const items = byCat[cat];
-        const withPhoto = items.filter(function (m) { return m.imageUrl; });
-        const noPhoto = items.filter(function (m) { return !m.imageUrl; });
-        return (
-          '<div class="mp-cat">' +
-            '<div class="mp-cat-name">' + escapeHtml(cat) + '</div>' +
-            (withPhoto.length ? '<div class="mp-grid">' + withPhoto.map(mpCard).join('') + '</div>' : '') +
-            (noPhoto.length ? '<div class="mp-list">' + noPhoto.map(mpRow).join('') + '</div>' : '') +
-          '</div>'
-        );
-      }).join('') +
-    '</div>'
-  );
+function menuButton() {
+  return '<button type="button" class="btn btn-ghost btn-block btn-sm" data-view-menu>📋 查看菜單</button>';
 }
 
-function mpCard(m) {
-  return '<div class="mp-card">' +
-    '<img src="' + escapeHtml(m.imageUrl) + '" alt="' + escapeHtml(m.name) + '" loading="lazy" data-zoomable>' +
-    '<div class="mp-card-body">' +
-      '<div class="mp-name">' + escapeHtml(m.name) + '</div>' +
-      '<div class="mp-price">' + menuPriceLabel(m) + '</div>' +
-    '</div>' +
-  '</div>';
-}
-
-function mpRow(m) {
-  return '<div class="mp-list-row"><span class="mp-list-name">' + escapeHtml(m.name) + '</span>' +
-    '<span class="mp-list-price">' + menuPriceLabel(m) + '</span></div>';
-}
-
-function menuPriceLabel(m) {
-  if (m.priceL) return 'M $' + m.priceM + '　L $' + m.priceL;
-  return '$' + m.priceM;
-}
+document.addEventListener('click', function (e) {
+  if (e.target.closest('[data-view-menu]')) openLightbox(MENU_PHOTO_URL, '完整菜單');
+});
 
 /* ==========================================================================
    圖片點擊放大——菜單照片、點餐清單縮圖共用

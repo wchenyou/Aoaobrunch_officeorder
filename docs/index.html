@@ -31,7 +31,7 @@ page.innerHTML =
 
   '<div id="myGroups"></div>' +
 
-  '<div id="menuPreviewArea"></div>' +
+  menuButton() +
 
   '<div class="notice notice-info" id="rules"><span class="ico">📌</span><div>載入店家規定中…</div></div>' +
 
@@ -113,13 +113,12 @@ page.innerHTML =
   '<div id="result" class="narrow"></div>' +
   renderFoot();
 
-/* 店家規定 + 菜單相片預覽 */
+/* 店家規定 */
 apiGet('getMenu').then(function (res) {
   const s = res.settings || {};
   document.querySelector('#rules div').innerHTML =
     '<strong>店家規定</strong>：距離店面 ' + (s['外送範圍公里數'] || 3) + ' 公里內、外送需滿 ' +
     (s['低消金額'] || 1000) + ' 元，而且最晚要在<strong>預訂日期前一天 15:00</strong> 之前完成送單。';
-  document.getElementById('menuPreviewArea').innerHTML = menuPreviewSection(res.menu);
 }).catch(function () {
   document.querySelector('#rules div').innerHTML =
     '<strong>店家規定</strong>：外送限 3 公里內、需滿 1000 元，最晚需於預訂日期前一天 15:00 前送單。';

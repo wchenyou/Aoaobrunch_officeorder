@@ -72,7 +72,7 @@ function render(existing) {
   }
 
   html += '<div id="topNotice"></div>';
-  html += menuPreviewSection(MENU);
+  html += '<div style="margin-bottom:14px;">' + menuButton() + '</div>';
 
   const cats = [];
   MENU.forEach(function (m) { if (cats.indexOf(m.category) < 0) cats.push(m.category); });
