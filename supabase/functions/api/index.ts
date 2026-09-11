@@ -23,6 +23,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
+import webpush from 'npm:web-push@3';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -411,6 +412,18 @@ async function finalizeSession(p: any) {
     } catch (err) { console.log('送單通知寄送失敗：', err); }
   }
 
+  /* 送單這一刻就是這團在店家後台「待處理訂單」裡冒出來的時間點，
+     順手推播一下。推播失敗（沒設定 VAPID 金鑰、店家還沒訂閱過…）
+     不能讓送單本身失敗，包一層 try/catch。 */
+  try {
+    const total = orders.reduce((s, o) => s + (Number(o.subtotal) || 0), 0);
+    await sendPushToVendors(settings, {
+      title: '📬 有新訂單送來了',
+      body: (session.company || session.organizer) + '｜' + fmtDateStr(session.deliveryDate) + '　共 $' + total,
+      url: 'vendor.html',
+    });
+  } catch (err) { console.log('店家後台推播失敗：', err); }
+
   return {
     ok: true,
     message: !recipients.length
@@ -487,9 +500,75 @@ async function checkVendorPassword(password: string, settings?: Record<string, s
   if (!real || password !== real) throw new Error('密碼不正確');
 }
 
-async function vendorLogin(p: any) {
+/* ============ 店家後台：新訂單瀏覽器推播（Web Push） ============
+   VAPID 金鑰放在 settings 表（網頁推播VAPID公鑰／網頁推播VAPID私鑰），
+   跟寄信帳密、店家後台密碼同一套習慣——這把金鑰不是密碼，是這支後端
+   的身分憑證，用來跟瀏覽器的推播服務（Google/Mozilla/Apple 的伺服器）
+   證明「這則推播真的是這個網站發的」。公鑰會回給前端去訂閱，私鑰只
+   留在後端簽章用，不會外流。
+
+   訂閱資訊（哪些瀏覽器/裝置要收推播）存在 push_subscriptions 表，
+   一列一個裝置，用 endpoint（瀏覽器推播服務給的專屬網址）當主鍵。 */
+
+async function vendorSubscribePush(p: any) {
   await checkVendorPassword(String(p.password || ''));
-  return { ok: true };
+  const sub = p.subscription || {};
+  if (!sub.endpoint || !sub.keys || !sub.keys.p256dh || !sub.keys.auth) {
+    throw new Error('推播訂閱資訊不完整');
+  }
+  const { error } = await supabase.from('push_subscriptions').upsert(
+    { endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth },
+    { onConflict: 'endpoint' },
+  );
+  if (error) throw new Error(error.message);
+  return { ok: true, message: '這台裝置已經開啟新訂單通知' };
+}
+
+async function vendorUnsubscribePush(p: any) {
+  await checkVendorPassword(String(p.password || ''));
+  if (!p.endpoint) throw new Error('缺少要取消的訂閱');
+  const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', p.endpoint);
+  if (error) throw new Error(error.message);
+  return { ok: true, message: '已關閉這台裝置的新訂單通知' };
+}
+
+/** 送單那一刻推播給「所有」訂閱過的裝置（可能不只一支手機）。VAPID
+ *  金鑰沒設定、或根本沒有人訂閱過，就安靜跳過，不影響送單本身。
+ *  推播端點失效（使用者清過瀏覽器資料、解除授權…）會收到 404/410，
+ *  順手把那筆訂閱刪掉，下次就不會再白跑一次。 */
+async function sendPushToVendors(settings: Record<string, string>, payload: { title: string; body: string; url?: string }) {
+  const publicKey = settings['網頁推播VAPID公鑰'] || '';
+  const privateKey = settings['網頁推播VAPID私鑰'] || '';
+  if (!publicKey || !privateKey) return;
+
+  const { data, error } = await supabase.from('push_subscriptions').select('*');
+  if (error) { console.log('讀取推播訂閱失敗：', error.message); return; }
+  const subs = data || [];
+  if (!subs.length) return;
+
+  webpush.setVapidDetails(settings['前端網址'] || 'mailto:admin@example.com', publicKey, privateKey);
+  const body = JSON.stringify(payload);
+
+  await Promise.all(subs.map(async (s: any) => {
+    try {
+      await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, body);
+    } catch (err: any) {
+      const code = err && (err.statusCode || err.status);
+      if (code === 404 || code === 410) {
+        await supabase.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
+      } else {
+        console.log('推播失敗：', s.endpoint, err && err.message);
+      }
+    }
+  }));
+}
+
+async function vendorLogin(p: any) {
+  const settings = await getSettings();
+  await checkVendorPassword(String(p.password || ''), settings);
+  /* 公鑰不是密碼，給前端拿去訂閱推播用；沒設定的話就回空字串，
+     前端看到空字串就知道還沒開放這功能，不會硬要訂閱。 */
+  return { ok: true, vapidPublicKey: settings['網頁推播VAPID公鑰'] || '' };
 }
 
 /** 依日期區間（可省略＝不限日期）＋狀態列出揪團，每團的訂單依品項彙總（不含跟團者姓名）
@@ -589,6 +668,8 @@ Deno.serve(async (req: Request) => {
         case 'vendorLogin': return json(await vendorLogin(payload));
         case 'vendorOrders': return json(await vendorOrders(payload));
         case 'vendorComplete': return json(await vendorComplete(payload));
+        case 'vendorSubscribePush': return json(await vendorSubscribePush(payload));
+        case 'vendorUnsubscribePush': return json(await vendorUnsubscribePush(payload));
         default: return json({ ok: false, error: '未知的操作：' + payload.action });
       }
     }
