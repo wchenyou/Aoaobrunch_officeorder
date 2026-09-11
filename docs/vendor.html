@@ -216,8 +216,10 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
               '<dd>×' + it.qty + '　$' + it.subtotal + '</dd></div>';
           }).join('') +
         '</dl>' +
-        '<div class="cart-total" style="margin-bottom:' + (done ? '0' : '10px') + ';"><span>總計</span><span class="amount">$' + s.total + '</span></div>' +
-        (done ? '' : '<button type="button" class="btn btn-ghost btn-block btn-sm" data-complete="' + escapeHtml(s.id) + '">📦 出餐完成後，點我標記</button>') +
+        '<div class="order-card-foot">' +
+          '<span class="label">總計</span><span class="amount">$' + s.total + '</span>' +
+          (done ? '' : '<button type="button" class="btn btn-primary btn-lg" data-complete="' + escapeHtml(s.id) + '">✅ 標記完成</button>') +
+        '</div>' +
       '</div>'
     );
   }).join('');
@@ -230,7 +232,7 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
         onReload();
       }).catch(function (err) {
         alert(err.message || String(err));
-        btn.disabled = false; btn.textContent = '📦 出餐完成後，點我標記';
+        btn.disabled = false; btn.textContent = '✅ 標記完成';
       });
     });
   });

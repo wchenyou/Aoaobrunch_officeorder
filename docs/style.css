@@ -306,6 +306,7 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 
 .btn-block { display: block; width: 100%; }
 .btn-sm { padding: 8px 16px; font-size: 13.5px; }
+.btn-lg { padding: 16px 30px; font-size: 16.5px; }
 
 /* ---------- 分類導覽 ---------- */
 
@@ -842,6 +843,26 @@ body.lightbox-open { overflow: hidden; }
   font-weight: 800;
 }
 .cart-total .amount { font-family: var(--font-num); font-size: 21px; color: var(--orange-deep); }
+
+/* 店家後台的訂單卡片：總計＋標記完成擠在同一列，按鈕靠右、故意做大顆一點，
+   方便店家在手機／平板上快速點按，不用另外滑到下面找一顆滿版按鈕。 */
+.order-card-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 12px;
+  margin-top: 4px;
+  border-top: 2px solid var(--border);
+}
+.order-card-foot .label { font-weight: 800; }
+.order-card-foot .amount {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-weight: 800;
+  font-size: 21px;
+  color: var(--orange-deep);
+}
 
 /* 桌機版的送單按鈕：手機隱藏（手機用底部浮動列） */
 .side-submit { display: none; }
