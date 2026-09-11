@@ -56,7 +56,7 @@ const SUPABASE_KEY = 'sb_publishable_-sPP27i_r99uhzwS9W2Z-g_yGwgS8xD';
   // ---------- 4. 依日期查詢頁：切過去、查詢、狀態篩選、CSV 下載 ----------
   await p1.click('label[for="vtabHistory"]');
   await p1.waitForSelector('#dateFrom', { timeout: 10000 });
-  await p1.selectOption('#statusFilter', '已送單');
+  await p1.selectOption('#statusFilter', 'false'); // 尚未完成
   await p1.click('#queryBtn');
   await p1.waitForSelector('#historyList .card', { timeout: 10000 });
   const historyText = await p1.locator('#historyList').innerText();

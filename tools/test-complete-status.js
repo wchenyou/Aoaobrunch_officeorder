@@ -1,9 +1,12 @@
 /* 測試：
    1. 首頁「你開過的團」狀態文字是「開團中」而不是「收單中」。
-   2. 送單後管理頁出現「✅ 店家已出餐，標記完成」按鈕，點下去狀態變成「已完成」。
-   3. 標記完成後，這團就不會再出現在首頁「你開過的團」列表。 */
+   2. 送單後管理頁出現「✅ 結算完了，標記這團完成」按鈕，點下去狀態變成「已完成」。
+   3. 標記完成後，這團就不會再出現在首頁「你開過的團」列表。
+   這是主揪自己的結案流程（organizer_closed），跟店家端的出餐進度
+   （vendor_done）是各自獨立的旗標，這支只測主揪這一邊。
+   改跑真的 Supabase（mock-server 是舊版、不會再更新這個功能）。 */
 const { chromium } = require('playwright');
-const BASE = process.env.BASE || 'http://localhost:8899';
+const BASE = process.env.BASE || 'http://localhost:8900';
 
 (async () => {
   const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});

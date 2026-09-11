@@ -266,7 +266,7 @@ function renderPendingShell() {
 function loadPending() {
   const list = document.getElementById('pendingList');
   list.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
-  apiPost('vendorOrders', { password: PASSWORD, status: ['已送單'] }).then(function (res) {
+  apiPost('vendorOrders', { password: PASSWORD, vendorDone: false }).then(function (res) {
     renderOrderCards(list, res.sessions || [], '目前沒有待處理的訂單', loadPending);
   }).catch(function (err) {
     list.innerHTML = '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
@@ -284,11 +284,11 @@ function renderHistoryShell() {
         '<div class="field"><label for="dateFrom">預訂日期從</label><input type="date" id="dateFrom" value="' + todayStr(-30) + '"></div>' +
         '<div class="field"><label for="dateTo">到</label><input type="date" id="dateTo" value="' + todayStr(30) + '"></div>' +
       '</div>' +
-      '<div class="field"><label for="statusFilter">狀態</label>' +
+      '<div class="field"><label for="statusFilter">完成狀態</label>' +
         '<select id="statusFilter">' +
-          '<option value="">全部（已送單＋已完成）</option>' +
-          '<option value="已送單">只看已送單</option>' +
-          '<option value="已完成">只看已完成</option>' +
+          '<option value="">全部</option>' +
+          '<option value="false">尚未完成</option>' +
+          '<option value="true">已完成</option>' +
         '</select></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
         '<button class="btn btn-primary" id="queryBtn" style="flex:1;min-width:120px;">查詢</button>' +
@@ -306,12 +306,12 @@ function loadHistory() {
   const list = document.getElementById('historyList');
   const dateFrom = document.getElementById('dateFrom').value;
   const dateTo = document.getElementById('dateTo').value;
-  const statusVal = document.getElementById('statusFilter').value;
+  const statusVal = document.getElementById('statusFilter').value; // '', 'false', 'true'
   list.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
 
   apiPost('vendorOrders', {
     password: PASSWORD, dateFrom: dateFrom, dateTo: dateTo,
-    status: statusVal ? [statusVal] : undefined
+    vendorDone: statusVal === '' ? undefined : (statusVal === 'true')
   }).then(function (res) {
     HISTORY_SESSIONS = res.sessions || [];
     renderOrderCards(list, HISTORY_SESSIONS, '這段期間沒有符合條件的團', loadHistory);
@@ -328,7 +328,7 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
     return;
   }
   container.innerHTML = sessions.map(function (s) {
-    const done = s.status === '已完成';
+    const done = s.vendorDone === true;
     const badge = done ? '<span class="badge done">已完成</span>' : '<span class="badge warn">已送單</span>';
     return (
       '<div class="card">' +
@@ -383,7 +383,7 @@ function exportCsv() {
   HISTORY_SESSIONS.forEach(function (s) {
     s.items.forEach(function (it) {
       const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
-      rows.push([s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.fulfillment, s.status, it.itemName, specs, it.qty, it.subtotal]);
+      rows.push([s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.fulfillment, (s.vendorDone ? '已完成' : '尚未完成'), it.itemName, specs, it.qty, it.subtotal]);
     });
   });
   const csv = '﻿' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\n');

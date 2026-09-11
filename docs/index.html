@@ -255,8 +255,9 @@ function renderMyGroups() {
   fabStack.appendChild(toggleBtn);
 
   function visibleGroups() {
-    /* 已完成的團不用再一直佔位子，這裡只留還需要主揪關注的團 */
-    return loadMyGroups().filter(function (g) { return g.status !== '已完成'; });
+    /* 主揪自己標記完成（結案）的團不用再一直佔位子，這裡只留還需要
+       關注的團——跟店家端的出餐進度是各自獨立的旗標，不會互相影響。 */
+    return loadMyGroups().filter(function (g) { return g.organizerClosed !== true; });
   }
 
   function cardHtml(items) {
@@ -338,6 +339,7 @@ function renderMyGroups() {
     apiGet('getAdminData', { session: g.id, token: g.token }).then(function (res) {
       updateMyGroup(g.id, {
         status: res.session.status,
+        organizerClosed: res.session.organizerClosed,
         deadline: res.session.deadline,
         company: res.session.company,
         deliveryDate: res.session.deliveryDate

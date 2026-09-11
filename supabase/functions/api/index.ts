@@ -118,6 +118,11 @@ function mapSessionRow(r: any) {
     address: r.address, needUtensils: r.need_utensils, company: r.company, taxId: r.tax_id,
     contactName: r.contact_name, contactPhone: r.contact_phone, contactAvailableTime: r.contact_available_time,
     typhoonCancel: r.typhoon_cancel, note: r.note, status: r.status, token: r.token,
+    /* 「已完成」原本是主揪、店家共用同一個 status 值，誰先標記就把另一邊
+       的畫面也改掉，語意搞混。拆成兩個各自獨立的旗標：vendorDone 是店家
+       自己在準備/出餐上的進度，organizerClosed 是主揪自己有沒有結案、
+       要不要讓這團從首頁「你開過的團」消失，兩邊互不影響。 */
+    vendorDone: !!r.vendor_done, organizerClosed: !!r.organizer_closed,
   };
 }
 
@@ -480,12 +485,15 @@ function buildOrderEmail(session: any, orders: any[], settings: Record<string, s
   return lines.join('\n');
 }
 
+/** 主揪自己結案：跟店家端的 vendor_done 是各自獨立的旗標，主揪結算完
+ *  （例如跟同事收完錢）就可以標記，不需要等店家也標記過。標記後這團
+ *  就不會再出現在首頁「你開過的團」列表。 */
 async function completeSession(p: any) {
   const session = await findSession(p.sessionId);
   if (!session) throw new Error('找不到這個揪團');
   if (session.token !== p.token) throw new Error('管理權杖不正確，無法標記完成');
-  if (session.status !== '已送單') throw new Error('要先送單，店家出餐後才能標記為完成');
-  const { error } = await supabase.from('sessions').update({ status: '已完成' }).eq('id', session.id);
+  if (session.status !== '已送單') throw new Error('要先送單才能標記完成');
+  const { error } = await supabase.from('sessions').update({ organizer_closed: true }).eq('id', session.id);
   if (error) throw new Error(error.message);
   return { ok: true, message: '已標記為完成' };
 }
@@ -571,22 +579,25 @@ async function vendorLogin(p: any) {
   return { ok: true, vapidPublicKey: settings['網頁推播VAPID公鑰'] || '' };
 }
 
-/** 依日期區間（可省略＝不限日期）＋狀態列出揪團，每團的訂單依品項彙總（不含跟團者姓名）
- *  p.status 沒給就預設「已送單、已完成」都要，給了就照給的篩——「待處理」頁只要已送單的，
- *  不用選日期；「依日期查詢」頁日期＋狀態都可以自己選。 */
+/** 依日期區間（可省略＝不限日期）＋店家自己的完成狀態列出揪團，每團的
+ *  訂單依品項彙總（不含跟團者姓名）。店家後台只在乎「已經送單過」的團
+ *  （status='已送單'，收單中的團跟店家無關，一律不列），vendorDone 才是
+ *  店家自己勾的進度——p.vendorDone 不給就是全部都要（「待處理」頁固定
+ *  傳 false，「依日期查詢」頁日期＋完成與否都可以自己選）。 */
 async function vendorOrders(p: any) {
   await checkVendorPassword(String(p.password || ''));
   const from = p.dateFrom || '1900-01-01';
   const to = p.dateTo || '2999-12-31';
-  const statusFilter: string[] = Array.isArray(p.status) && p.status.length ? p.status : ['已送單', '已完成'];
 
-  const { data: sessionsData, error: sErr } = await supabase
-    .from('sessions')
-    .select('*')
+  let q = supabase.from('sessions').select('*')
+    .eq('status', '已送單')
     .gte('delivery_date', from)
     .lte('delivery_date', to)
-    .in('status', statusFilter)
     .order('delivery_date', { ascending: false });
+  if (p.vendorDone === true) q = q.eq('vendor_done', true);
+  else if (p.vendorDone === false) q = q.eq('vendor_done', false);
+
+  const { data: sessionsData, error: sErr } = await q;
   if (sErr) throw new Error(sErr.message);
 
   const sessions = (sessionsData || []).map(mapSessionRow);
@@ -605,20 +616,21 @@ async function vendorOrders(p: any) {
     out.push({
       id: s.id, company: s.company, organizer: s.organizer,
       deliveryDate: s.deliveryDate, deliveryTime: s.deliveryTime, fulfillment: s.fulfillment,
-      address: s.address, status: s.status,
+      address: s.address, vendorDone: s.vendorDone,
       items: Object.values(byKey), total,
     });
   }
   return { ok: true, sessions: out };
 }
 
+/** 店家自己標記出餐/處理完成：只動 vendor_done，不影響主揪端的 organizer_closed。 */
 async function vendorComplete(p: any) {
   await checkVendorPassword(String(p.password || ''));
   const { data, error: findErr } = await supabase.from('sessions').select('status').eq('id', p.sessionId).maybeSingle();
   if (findErr) throw new Error(findErr.message);
   if (!data) throw new Error('找不到這個揪團');
-  if (data.status !== '已送單') throw new Error('要先送單，店家出餐後才能標記為完成');
-  const { error } = await supabase.from('sessions').update({ status: '已完成' }).eq('id', p.sessionId);
+  if (data.status !== '已送單') throw new Error('要先送單才能標記完成');
+  const { error } = await supabase.from('sessions').update({ vendor_done: true }).eq('id', p.sessionId);
   if (error) throw new Error(error.message);
   return { ok: true, message: '已標記為完成' };
 }

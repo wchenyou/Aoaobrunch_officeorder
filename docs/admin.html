@@ -152,7 +152,8 @@ function rememberThisGroup() {
     organizer: SESSION.organizer,
     deliveryDate: SESSION.deliveryDate,
     deadline: SESSION.deadline,
-    status: SESSION.status
+    status: SESSION.status,
+    organizerClosed: SESSION.organizerClosed
   });
 }
 
@@ -177,8 +178,9 @@ function renderAll() {
   document.getElementById('stTotal').textContent = '$' + total;
   document.getElementById('barTotal').textContent = total;
 
-  /* 狀態 */
-  const completed = SESSION.status === '已完成';
+  /* 狀態。completed 是「主揪自己標記結案」，跟店家端的出餐進度
+     （vendorDone）是各自獨立的旗標，不要混在一起判斷。 */
+  const completed = SESSION.organizerClosed === true;
   const sent = SESSION.status === '已送單' || completed;
   const left = timeLeft(SESSION.deadline);
   document.getElementById('statusBadge').innerHTML = completed
@@ -188,7 +190,7 @@ function renderAll() {
       : (left ? '<span class="badge">開團中</span>' : '<span class="badge warn">已截止</span>'));
 
   document.getElementById('deadlineLine').innerHTML = completed
-    ? '這團已經出餐完成了。'
+    ? '這團你已經標記完成了。'
     : (sent
       ? '這團已經送單，同事無法再點餐。'
       : (left
@@ -263,11 +265,13 @@ function renderAll() {
     document.getElementById('barNote').textContent = completed ? '已出餐完成' : '已通知店家';
   }
 
-  /* 送單後、店家出餐前，讓主揪回來標記完成——標記後這團就會從首頁「你開過的團」列表消失 */
+  /* 送單後，主揪結算完（例如跟同事收完錢）就可以自己回來標記完成——
+     不用等店家也標記，兩邊各管各的。標記後這團就會從首頁「你開過的團」
+     列表消失。 */
   const completeArea = document.getElementById('completeArea');
   if (completeArea) {
-    completeArea.innerHTML = (SESSION.status === '已送單')
-      ? '<button type="button" class="btn btn-ghost btn-block btn-sm" id="completeBtn" style="margin-top:8px;">📦 等店家出餐後，點我標記完成</button>'
+    completeArea.innerHTML = (SESSION.status === '已送單' && !completed)
+      ? '<button type="button" class="btn btn-ghost btn-block btn-sm" id="completeBtn" style="margin-top:8px;">✅ 結算完了，標記這團完成</button>'
       : '';
     const completeBtn = document.getElementById('completeBtn');
     if (completeBtn) completeBtn.addEventListener('click', completeGroup);
@@ -279,14 +283,14 @@ function completeGroup() {
   const btn = document.getElementById('completeBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 標記中…'; }
   apiPost('completeSession', { sessionId: SESSION_ID, token: TOKEN }).then(function () {
-    SESSION.status = '已完成';
-    updateMyGroup(SESSION.id, { status: '已完成' });
+    SESSION.organizerClosed = true;
+    updateMyGroup(SESSION.id, { organizerClosed: true });
     renderAll();
     document.getElementById('msgArea').innerHTML =
       '<div class="notice notice-good"><span class="ico">✅</span><div>這團已經標記為完成了。</div></div>';
   }).catch(function (err) {
     alert(err.message || String(err));
-    if (btn) { btn.disabled = false; btn.textContent = '📦 等店家出餐後，點我標記完成'; }
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 結算完了，標記這團完成'; }
   });
 }
 
