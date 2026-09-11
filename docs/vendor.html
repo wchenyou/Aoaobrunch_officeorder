@@ -102,12 +102,23 @@ function renderShell() {
         '<input type="radio" name="vtab" id="vtabPending" checked><label for="vtabPending">📥 待處理訂單</label>' +
         '<input type="radio" name="vtab" id="vtabHistory"><label for="vtabHistory">🔍 依日期查詢</label>' +
       '</div>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
-        '<button class="btn btn-ghost btn-sm" id="pushToggleBtn" hidden></button>' +
-        '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button>' +
+      '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button>' +
+    '</div>' +
+
+    /* 這是一個「設定」，跟上面分頁列（待處理／依日期查詢）或登出不是
+       同一類東西，硬塞在同一列會看起來很突兀，所以獨立成自己的一張
+       卡片，標籤／說明／開關放在一起，意思才清楚。VAPID 金鑰沒設定
+       時這張卡片整個不會出現（見 initPushUI）。 */
+    '<div class="card" id="pushCard" hidden style="padding:14px 18px;">' +
+      '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">' +
+        '<div style="flex:1;min-width:200px;">' +
+          '<strong>🔔 新訂單通知</strong>' +
+          '<div class="tiny" id="pushHint" style="margin-top:2px;">有新訂單送來時，這台裝置會跳系統通知。</div>' +
+        '</div>' +
+        '<button class="btn btn-ghost btn-sm" id="pushToggleBtn"></button>' +
       '</div>' +
     '</div>' +
-    '<div class="tiny" id="pushHint"></div>' +
+
     '<div id="pendingPanel"></div>' +
     '<div id="historyPanel" hidden></div>';
 
@@ -128,14 +139,16 @@ function renderShell() {
    權限請求視窗。 */
 
 function initPushUI() {
-  const btn = document.getElementById('pushToggleBtn');
+  const card = document.getElementById('pushCard');
   const hint = document.getElementById('pushHint');
-  if (!btn) return;
+  if (!card) return;
 
-  if (!VAPID_PUBLIC_KEY) return; // 後端還沒設定 VAPID 金鑰，功能還沒開放，按鈕就不出現
+  if (!VAPID_PUBLIC_KEY) return; // 後端還沒設定 VAPID 金鑰，功能還沒開放，整張卡片都不出現
+  card.hidden = false;
 
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
     hint.textContent = '📱 這個瀏覽器目前不支援通知（iPhone 的話，要先把這個網址加到主畫面才能用）。';
+    document.getElementById('pushToggleBtn').hidden = true;
     return;
   }
 
@@ -147,20 +160,22 @@ function initPushUI() {
   }).catch(function (err) {
     console.log('推播初始化失敗：', err);
     hint.textContent = '這台裝置目前沒辦法開啟通知。';
+    document.getElementById('pushToggleBtn').hidden = true;
   });
 }
 
 function paintPushBtn(subscribed) {
   const btn = document.getElementById('pushToggleBtn');
+  const hint = document.getElementById('pushHint');
   btn.hidden = false;
   btn.disabled = false;
   btn.style.borderColor = '';
   btn.style.color = '';
 
   if (Notification.permission === 'denied') {
-    btn.textContent = '🔕 通知被瀏覽器封鎖';
+    btn.textContent = '🔕 已封鎖';
     btn.disabled = true;
-    btn.title = '要重新開啟的話，去瀏覽器的「網站設定」把這個網址的通知權限打開';
+    hint.textContent = '通知被瀏覽器擋掉了，要重新開啟的話，去瀏覽器的「網站設定」把這個網址的通知權限打開。';
     return;
   }
   if (subscribed) {
@@ -168,10 +183,12 @@ function paintPushBtn(subscribed) {
     btn.style.borderColor = 'var(--leaf)';
     btn.style.color = 'var(--leaf)';
     btn.title = '點一下可以關閉';
+    hint.textContent = '這台裝置有新訂單送來時會跳系統通知。';
     btn.onclick = disablePush;
   } else {
-    btn.textContent = '🔔 開啟新訂單通知';
+    btn.textContent = '開啟';
     btn.title = '';
+    hint.textContent = '有新訂單送來時，這台裝置會跳系統通知。';
     btn.onclick = enablePush;
   }
 }
