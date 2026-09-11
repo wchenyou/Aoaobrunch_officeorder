@@ -1,0 +1,572 @@
+/**
+ * 嗷嗷早午餐｜辦公室團購點餐系統 — 後端 API（Supabase Edge Function）
+ * ------------------------------------------------------------
+ * 這是原本 apps-script/Code.gs 的替代品，邏輯幾乎逐一對應搬過來，
+ * 差別只在「資料庫」從 Google 試算表換成 Supabase 的 Postgres。
+ *
+ * 前端（docs/ 資料夾，GitHub Pages）不變，只是 config.js 裡的 API_URL
+ * 換成這支函式的網址，呼叫方式（action + 參數）維持原本的 api.js 合約。
+ *
+ * 資料表都關了 RLS、不開放任何公開存取，前端一律透過這支函式（用
+ * service role）讀寫，跟原本「前端只透過後端 API 講話」的架構一致。
+ *
+ * 寄信用 Resend；金鑰不是放環境變數，而是放在 settings 資料表的
+ * 「寄信API金鑰」欄位——這樣之後要換金鑰、換寄件人不用重新部署程式碼，
+ * 直接在 Supabase 後台的 Table Editor 改一格就好，跟以前改 Google
+ * 試算表的「設定」分頁是同一種習慣。金鑰欄位是空的的話就跳過寄信，
+ * 不會讓整支 API 掛掉。
+ */
+
+import { createClient } from 'npm:@supabase/supabase-js@2';
+
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+};
+
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+  });
+}
+
+function fail(err: unknown) {
+  const message = err instanceof Error ? err.message : String(err);
+  return json({ ok: false, error: message });
+}
+
+/* ============ 台北時間小工具 ============
+   用 +08:00 明確時區字串讓 JS 自己解析／格式化，不用像 Apps Script
+   那樣手算 epoch 繞開「腳本預設時區不可靠」的問題——Edge Function
+   沒有那個問題，直接標明時區就好。 */
+
+function pad(n: number) { return String(n).padStart(2, '0'); }
+
+function taipeiParts(d: Date) {
+  const t = new Date(d.getTime() + 8 * 3600 * 1000);
+  return { y: t.getUTCFullYear(), mo: t.getUTCMonth() + 1, day: t.getUTCDate(), h: t.getUTCHours(), mi: t.getUTCMinutes() };
+}
+function taipeiDateStr(d: Date) { const p = taipeiParts(d); return `${p.y}-${pad(p.mo)}-${pad(p.day)}`; }
+function fmtDate(d: Date) { const p = taipeiParts(d); return `${p.y}/${pad(p.mo)}/${pad(p.day)}`; }
+/** delivery_date 存的是純日期字串（無時間、無時區），直接字串換分隔符號就好，不用經過 Date */
+function fmtDateStr(s: string) { return String(s || '').replace(/-/g, '/'); }
+function fmtDateTime(d: Date) { const p = taipeiParts(d); return `${p.mo}/${p.day} ${pad(p.h)}:${pad(p.mi)}`; }
+function fmtStamp(d: Date) { const p = taipeiParts(d); return `${p.y}/${pad(p.mo)}/${pad(p.day)} ${pad(p.h)}:${pad(p.mi)}:${pad(0)}`; }
+
+function parseTaipei(s?: string | null): Date | null {
+  if (!s) return null;
+  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (!m) return null;
+  const hh = m[4] ?? '00', mi = m[5] ?? '00';
+  const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${hh}:${mi}:00+08:00`);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function genSessionId() {
+  const p = taipeiParts(new Date());
+  const rand = crypto.randomUUID().replace(/-/g, '').slice(0, 4).toUpperCase();
+  return `${p.y}${pad(p.mo)}${pad(p.day)}-${rand}`;
+}
+function genToken() { return crypto.randomUUID().replace(/-/g, ''); }
+function genOrderCode() { return crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase(); }
+
+/* ============ 設定 / 菜單 讀取 ============ */
+
+async function getSettings(): Promise<Record<string, string>> {
+  const { data, error } = await supabase.from('settings').select('key, value');
+  if (error) throw new Error(error.message);
+  const map: Record<string, string> = {};
+  (data || []).forEach((r: any) => { map[r.key] = r.value; });
+  return map;
+}
+
+function mapMenuRow(r: any) {
+  return {
+    code: r.code, name: r.name, category: r.category,
+    priceM: r.price_m === null ? null : Number(r.price_m),
+    priceL: r.price_l === null ? null : Number(r.price_l),
+    opt1Name: r.opt1_name, opt1Choices: r.opt1_choices || [], opt1Required: r.opt1_required,
+    opt2Name: r.opt2_name, opt2Choices: r.opt2_choices || [], opt2Required: r.opt2_required,
+    note: r.note, imageUrl: r.image_url,
+  };
+}
+
+async function getMenu() {
+  const { data, error } = await supabase.from('menu_items').select('*').eq('available', true).order('sort_order');
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapMenuRow);
+}
+
+/* ============ 揪團 / 訂單 讀取 ============ */
+
+function mapSessionRow(r: any) {
+  return {
+    id: r.id, organizer: r.organizer, organizerEmail: r.organizer_email, createdAt: r.created_at,
+    deadline: r.deadline, fulfillment: r.fulfillment, deliveryDate: r.delivery_date, deliveryTime: r.delivery_time,
+    address: r.address, needUtensils: r.need_utensils, company: r.company, taxId: r.tax_id,
+    contactName: r.contact_name, contactPhone: r.contact_phone, contactAvailableTime: r.contact_available_time,
+    typhoonCancel: r.typhoon_cancel, note: r.note, status: r.status, token: r.token,
+  };
+}
+
+async function findSession(sessionId?: string | null) {
+  if (!sessionId) return null;
+  const { data, error } = await supabase.from('sessions').select('*').eq('id', sessionId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? mapSessionRow(data) : null;
+}
+
+function mapOrderRow(r: any) {
+  return {
+    timestamp: r.created_at, sessionId: r.session_id, orderCode: r.order_code, name: r.name,
+    itemCode: r.item_code, itemName: r.item_name, size: r.size, opt1: r.opt1, opt2: r.opt2,
+    qty: r.qty, note: r.note, price: Number(r.price), subtotal: Number(r.subtotal), status: r.status,
+    notifyEmail: r.notify_email || '',
+  };
+}
+
+async function getOrdersForSession(sessionId: string, includeCancelled = false) {
+  let q = supabase.from('orders').select('*').eq('session_id', sessionId);
+  if (!includeCancelled) q = q.neq('status', '已取消');
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data || []).map(mapOrderRow);
+}
+
+async function getOrderByCode(sessionId: string, orderCode: string) {
+  const rows = await getOrdersForSession(sessionId, false);
+  return rows.filter((o: any) => o.orderCode === orderCode);
+}
+
+/* ============ 寄信（Resend，金鑰放在 settings 表） ============ */
+
+async function sendEmail(settings: Record<string, string>, to: string, subject: string, body: string) {
+  const apiKey = settings['寄信API金鑰'];
+  if (!apiKey) { console.log('[email 略過：尚未在設定填「寄信API金鑰」]', to, subject); return false; }
+  const from = settings['寄件人Email'] || 'onboarding@resend.dev';
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to: to.split(',').map((s) => s.trim()).filter(Boolean), subject, text: body }),
+  });
+  if (!res.ok) throw new Error('寄信失敗：' + (await res.text()));
+  return true;
+}
+
+/* ============ 建立揪團 ============ */
+
+async function createSession(p: any) {
+  if (!p.organizer) throw new Error('請填寫主揪姓名');
+  if (!p.organizerEmail || String(p.organizerEmail).indexOf('@') < 0) {
+    throw new Error('請填寫主揪 Email，管理連結會寄一份到這個信箱，之後才找得回來');
+  }
+  if (!p.contactName || !p.contactPhone) throw new Error('請填寫聯絡窗口姓名與電話');
+  if (p.fulfillment === '外送' && !p.address) throw new Error('外送需要填寫外送地址');
+
+  const deliveryDate = parseTaipei(p.deliveryDate);
+  if (!deliveryDate) throw new Error('請填寫正確的預訂日期');
+
+  const todayStr = taipeiDateStr(new Date());
+  const deliveryDateStr = taipeiDateStr(deliveryDate);
+  if (deliveryDateStr <= todayStr) throw new Error('預訂日期最早只能選明天，不能選今天或更早的日期');
+
+  const deadline = parseTaipei(p.deadline);
+  if (!deadline) throw new Error('請填寫正確的收單截止時間');
+  if (deadline.getTime() <= Date.now()) throw new Error('收單截止時間必須晚於現在');
+
+  const maxDeadline = new Date(deliveryDate.getTime() - 24 * 3600 * 1000 + 15 * 3600 * 1000);
+  if (deadline.getTime() > maxDeadline.getTime()) {
+    throw new Error('收單截止時間不能晚於預訂日期前一天的 15:00（店家規定最晚前一日 15:00 前下單）');
+  }
+
+  const id = genSessionId();
+  const token = genToken();
+
+  const { error } = await supabase.from('sessions').insert({
+    id, organizer: p.organizer, organizer_email: p.organizerEmail || '',
+    deadline: deadline.toISOString(), fulfillment: p.fulfillment,
+    delivery_date: deliveryDateStr, delivery_time: p.deliveryTime || '', address: p.address || '',
+    need_utensils: p.needUtensils || '', company: p.company || '', tax_id: p.taxId || '',
+    contact_name: p.contactName, contact_phone: p.contactPhone,
+    contact_available_time: p.contactAvailableTime || '', typhoon_cancel: p.typhoonCancel || '',
+    note: p.note || '', status: '收單中', token,
+  });
+  if (error) throw new Error(error.message);
+
+  let mailed = false;
+  try { mailed = await sendOrganizerLinks(id, token, p); } catch (err) { console.log('寄送管理連結失敗：', err); }
+
+  return { ok: true, sessionId: id, adminToken: token, mailed };
+}
+
+async function sendOrganizerLinks(id: string, token: string, p: any) {
+  const settings = await getSettings();
+  let base = String(settings['前端網址'] || '').trim();
+  if (base.indexOf('http') !== 0) base = String(p.baseUrl || '').trim();
+  if (base.indexOf('http') !== 0) return false;
+  if (base.slice(-1) !== '/') base += '/';
+
+  const orderUrl = base + 'order.html?session=' + encodeURIComponent(id);
+  const adminUrl = base + 'admin.html?session=' + encodeURIComponent(id) + '&admin=' + encodeURIComponent(token);
+  const deadline = parseTaipei(p.deadline)!;
+
+  const lines = [
+    p.organizer + ' 你好，你的團開好了。', '',
+    '這封信請留著，之後要收團、送單都靠它。', '',
+    '── 分享給同事的點餐連結 ──', orderUrl, '',
+    '── 你的管理連結（請勿外流） ──', adminUrl,
+    '只有這個連結能看到全部訂單、按下送單。', '',
+    '── 這次的團 ──',
+    '公司：' + (p.company || '（未填）'),
+    '取餐方式：' + p.fulfillment,
+    '預訂日期：' + fmtDateStr(p.deliveryDate) + ' ' + (p.deliveryTime || ''),
+    '收單截止：' + fmtDateTime(deadline), '',
+    '截止時間一到，同事就不能再點餐或修改，記得回管理連結按送單。',
+  ];
+  return await sendEmail(settings, p.organizerEmail, '【嗷嗷團購】' + (p.company || p.organizer) + ' 的管理連結（' + fmtDateStr(p.deliveryDate) + '）', lines.join('\n'));
+}
+
+/* ============ 送出／修改／取消訂單 ============ */
+
+async function submitOrderCore(p: any, forcedOrderCode?: string, actionLabel?: string) {
+  const session = await findSession(p.sessionId);
+  if (!session) throw new Error('找不到這個揪團，連結可能有誤');
+  if (session.status !== '收單中') throw new Error('這個揪團已經截止收單了');
+  if (Date.now() >= new Date(session.deadline).getTime()) throw new Error('已經超過收單截止時間了');
+  if (!p.name) throw new Error('請填寫姓名');
+  if (!p.items || !p.items.length) throw new Error('購物車是空的');
+
+  const menu = await getMenu();
+  const menuMap: Record<string, any> = {};
+  menu.forEach((m: any) => { menuMap[m.code] = m; });
+
+  const rows: any[] = [];
+  const lineObjs: any[] = [];
+  const orderCode = forcedOrderCode || genOrderCode();
+  const notifyEmail = String(p.notifyEmail || '').trim();
+
+  for (const item of p.items) {
+    const m = menuMap[item.code];
+    if (!m) throw new Error('品項不存在或已下架：' + item.code);
+    const qty = Number(item.qty) || 0;
+    if (qty <= 0) continue;
+    if (m.opt1Required && !item.opt1) throw new Error(m.name + ' 需要選擇「' + m.opt1Name + '」');
+    if (m.opt2Required && !item.opt2) throw new Error(m.name + ' 需要選擇「' + m.opt2Name + '」');
+    const size = item.size || '';
+    let price = m.priceM;
+    if (size === 'L' && m.priceL) price = m.priceL;
+    price = Number(price) || 0;
+    rows.push({
+      session_id: session.id, order_code: orderCode, name: p.name,
+      item_code: m.code, item_name: m.name, size,
+      opt1: item.opt1 || '', opt2: item.opt2 || '', qty, note: item.note || '',
+      price, subtotal: price * qty, status: '正常', notify_email: notifyEmail,
+    });
+    lineObjs.push({ itemName: m.name, size, opt1: item.opt1 || '', opt2: item.opt2 || '', qty, note: item.note || '', subtotal: price * qty });
+  }
+  if (!rows.length) throw new Error('沒有有效的品項，請確認數量');
+
+  const { error } = await supabase.from('orders').insert(rows);
+  if (error) throw new Error(error.message);
+
+  if (notifyEmail && notifyEmail.indexOf('@') > -1) {
+    try { await sendOrderConfirmation(session, p.name, lineObjs, orderCode, notifyEmail, actionLabel || '送出', p); }
+    catch (err) { console.log('寄送訂單確認信失敗：', err); }
+  }
+  return { ok: true, orderCode };
+}
+
+async function updateOrder(p: any) {
+  const session = await findSession(p.sessionId);
+  if (!session) throw new Error('找不到這個揪團');
+  if (session.status !== '收單中') throw new Error('已經截止收單，無法修改');
+  if (Date.now() >= new Date(session.deadline).getTime()) throw new Error('已經超過收單截止時間了');
+  if (!p.orderCode) throw new Error('缺少訂單編號');
+
+  await removeOrderRows(session.id, p.orderCode, false);
+  const result = await submitOrderCore(p, p.orderCode, '更新');
+  return { ok: true, orderCode: result.orderCode, message: '訂單已更新' };
+}
+
+async function cancelOrder(p: any) {
+  const session = await findSession(p.sessionId);
+  if (!session) throw new Error('找不到這個揪團');
+  if (session.status !== '收單中') throw new Error('已經截止收單，無法取消');
+  if (Date.now() >= new Date(session.deadline).getTime()) throw new Error('已經超過收單截止時間了');
+
+  const existing = await getOrderByCode(session.id, p.orderCode);
+  const removed = await removeOrderRows(session.id, p.orderCode, true);
+  if (!removed) throw new Error('找不到這筆訂單');
+
+  const notifyEmail = existing.length ? existing[0].notifyEmail : '';
+  if (notifyEmail && notifyEmail.indexOf('@') > -1) {
+    const lineObjs = existing.map((o: any) => ({ itemName: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: o.qty, note: o.note, subtotal: o.subtotal }));
+    try { await sendOrderConfirmation(session, existing[0].name, lineObjs, p.orderCode, notifyEmail, '取消', p); }
+    catch (err) { console.log('寄送取消確認信失敗：', err); }
+  }
+  return { ok: true, message: '訂單已取消' };
+}
+
+async function removeOrderRows(sessionId: string, orderCode: string, markCancelled: boolean) {
+  if (markCancelled) {
+    const { data, error } = await supabase.from('orders').update({ status: '已取消' })
+      .eq('session_id', sessionId).eq('order_code', orderCode).select('id');
+    if (error) throw new Error(error.message);
+    return (data || []).length > 0;
+  }
+  const { data, error } = await supabase.from('orders').delete()
+    .eq('session_id', sessionId).eq('order_code', orderCode).select('id');
+  if (error) throw new Error(error.message);
+  return (data || []).length > 0;
+}
+
+async function sendOrderConfirmation(session: any, name: string, lineObjs: any[], orderCode: string, notifyEmail: string, actionLabel: string, p: any) {
+  const settings = await getSettings();
+  const sentAt = fmtStamp(new Date());
+  const lines: string[] = [];
+  lines.push('這是你在「' + session.organizer + '」揪的團裡，訂單' + actionLabel + '的明細。');
+  lines.push('寄送時間：' + sentAt);
+  lines.push('（如果同一筆訂單收到不只一封，時間最新的這封才是目前正確的版本。）');
+  lines.push('');
+  lines.push('揪團：' + session.organizer + '　預訂日期：' + fmtDateStr(session.deliveryDate));
+  lines.push('訂購人：' + name);
+  lines.push('');
+  lines.push(actionLabel === '取消' ? '── 取消前的內容（僅供留存） ──' : '── 目前的訂購內容 ──');
+  let total = 0;
+  lineObjs.forEach((l) => {
+    const specs = [l.size, l.opt1, l.opt2].filter(Boolean).join('／');
+    lines.push('・' + l.itemName + (specs ? '（' + specs + '）' : '') + ' x ' + l.qty + '　$' + l.subtotal + (l.note ? '　備註：' + l.note : ''));
+    total += Number(l.subtotal) || 0;
+  });
+  lines.push('');
+  lines.push('小計：$' + total);
+  if (actionLabel !== '取消') {
+    let base = String(settings['前端網址'] || '').trim();
+    if (base.indexOf('http') !== 0) base = String(p?.baseUrl || '').trim();
+    if (base.indexOf('http') === 0) {
+      if (base.slice(-1) !== '/') base += '/';
+      lines.push('');
+      lines.push('截止前想改或想取消，用這個連結：');
+      lines.push(base + 'order.html?session=' + encodeURIComponent(session.id) + '&edit=' + encodeURIComponent(orderCode));
+    }
+  }
+  await sendEmail(settings, notifyEmail, '【嗷嗷團購】你的訂單' + actionLabel + '確認（' + sentAt + '）', lines.join('\n'));
+}
+
+/* ============ 送單／通知（主揪按送單） ============ */
+
+async function finalizeSession(p: any) {
+  const session = await findSession(p.sessionId);
+  if (!session) throw new Error('找不到這個揪團');
+  if (session.token !== p.token) throw new Error('管理權杖不正確，無法送單');
+  if (session.status !== '收單中') throw new Error('這個揪團已經送過單或已經完成了');
+
+  const orders = await getOrdersForSession(session.id, false);
+  if (!orders.length) throw new Error('目前還沒有任何訂單，無法送單');
+
+  const { error } = await supabase.from('sessions').update({ status: '已送單' }).eq('id', session.id);
+  if (error) throw new Error(error.message);
+
+  const settings = await getSettings();
+  const emailBody = buildOrderEmail(session, orders, settings);
+  let recipients = [String(settings['店家收單Email'] || ''), String(settings['副本收單Email'] || '')].filter((v) => v && v.indexOf('@') > -1);
+  if (session.organizerEmail && session.organizerEmail.indexOf('@') > -1) recipients.push(session.organizerEmail);
+  recipients = recipients.filter((v, i) => recipients.indexOf(v) === i);
+
+  let mailed = false;
+  if (recipients.length) {
+    try {
+      mailed = await sendEmail(settings, recipients.join(','), '【團購訂單】' + (session.company || session.organizer) + '｜' + fmtDateStr(session.deliveryDate) + '｜' + session.fulfillment, emailBody);
+    } catch (err) { console.log('送單通知寄送失敗：', err); }
+  }
+
+  return {
+    ok: true,
+    message: !recipients.length
+      ? '已送單，但沒有設定收件信箱，請到「設定」補上店家收單Email'
+      : (mailed ? '已送單並寄出通知信' : '已送單，但目前尚未設定寄信服務，請到「設定」補上「寄信API金鑰」'),
+    recipients,
+  };
+}
+
+function buildOrderEmail(session: any, orders: any[], settings: Record<string, string>) {
+  const lines: string[] = [];
+  lines.push('【嗷嗷早午餐｜辦公室團購訂單】');
+  lines.push('揪團編號：' + session.id);
+  lines.push('主揪：' + session.organizer);
+  lines.push('');
+  lines.push('── 訂購資訊 ──');
+  lines.push('取餐方式：' + session.fulfillment);
+  lines.push('預訂日期：' + fmtDateStr(session.deliveryDate));
+  lines.push('期望送達時間：' + session.deliveryTime);
+  if (session.fulfillment === '外送') lines.push('外送地址：' + session.address);
+  lines.push('是否需要餐具：' + session.needUtensils);
+  lines.push('公司名稱：' + (session.company || '（未填）'));
+  lines.push('統一編號：' + (session.taxId || '（未填）'));
+  lines.push('聯絡窗口：' + session.contactName + '（' + session.contactPhone + '）');
+  lines.push('方便接聽電話時間：' + session.contactAvailableTime);
+  lines.push('若遇颱風假是否取消：' + session.typhoonCancel);
+  if (session.note) lines.push('備註：' + session.note);
+  lines.push('');
+  lines.push('── 訂購明細（依人員） ──');
+  let total = 0;
+  const byPerson: Record<string, any[]> = {};
+  orders.forEach((o) => { (byPerson[o.name] = byPerson[o.name] || []).push(o); total += Number(o.subtotal) || 0; });
+  Object.keys(byPerson).forEach((name) => {
+    lines.push(name + '：');
+    byPerson[name].forEach((o) => {
+      const specs = [o.size, o.opt1, o.opt2].filter(Boolean).join('／');
+      lines.push('　・' + o.itemName + (specs ? '（' + specs + '）' : '') + ' x ' + o.qty + '　$' + o.subtotal + (o.note ? '　備註：' + o.note : ''));
+    });
+  });
+  lines.push('');
+  lines.push('── 品項彙總（方便店家備餐） ──');
+  const byItem: Record<string, number> = {};
+  orders.forEach((o) => {
+    const key = o.itemName + '｜' + [o.size, o.opt1, o.opt2].filter(Boolean).join('／');
+    byItem[key] = (byItem[key] || 0) + Number(o.qty);
+  });
+  Object.keys(byItem).forEach((key) => lines.push('・' + key + '　共 ' + byItem[key] + ' 份'));
+  lines.push('');
+  lines.push('訂單總金額：$' + total);
+  const minOrder = Number(settings['低消金額'] || 0);
+  if (session.fulfillment === '外送' && minOrder && total < minOrder) {
+    lines.push('⚠️ 尚未達到外送低消 $' + minOrder + '，請確認是否需要加點或改為自取。');
+  }
+  return lines.join('\n');
+}
+
+async function completeSession(p: any) {
+  const session = await findSession(p.sessionId);
+  if (!session) throw new Error('找不到這個揪團');
+  if (session.token !== p.token) throw new Error('管理權杖不正確，無法標記完成');
+  if (session.status !== '已送單') throw new Error('要先送單，店家出餐後才能標記為完成');
+  const { error } = await supabase.from('sessions').update({ status: '已完成' }).eq('id', session.id);
+  if (error) throw new Error(error.message);
+  return { ok: true, message: '已標記為完成' };
+}
+
+/* ============ 店家後台（不用主揪的權杖，用單一共用密碼） ============
+   密碼放在 settings 表的「店家後台密碼」，要換密碼直接在 Supabase
+   後台的 Table Editor 改，不用重新部署程式碼。 */
+
+async function checkVendorPassword(password: string, settings?: Record<string, string>) {
+  const s = settings || (await getSettings());
+  const real = s['店家後台密碼'] || '';
+  if (!real || password !== real) throw new Error('密碼不正確');
+}
+
+async function vendorLogin(p: any) {
+  await checkVendorPassword(String(p.password || ''));
+  return { ok: true };
+}
+
+/** 依日期區間列出已送單／已完成的揪團，每團的訂單依品項彙總（不含跟團者姓名） */
+async function vendorOrders(p: any) {
+  await checkVendorPassword(String(p.password || ''));
+  const from = p.dateFrom || '1900-01-01';
+  const to = p.dateTo || '2999-12-31';
+
+  const { data: sessionsData, error: sErr } = await supabase
+    .from('sessions')
+    .select('*')
+    .gte('delivery_date', from)
+    .lte('delivery_date', to)
+    .in('status', ['已送單', '已完成'])
+    .order('delivery_date', { ascending: false });
+  if (sErr) throw new Error(sErr.message);
+
+  const sessions = (sessionsData || []).map(mapSessionRow);
+  const out: any[] = [];
+  for (const s of sessions) {
+    const orders = await getOrdersForSession(s.id, false);
+    const byKey: Record<string, any> = {};
+    let total = 0;
+    orders.forEach((o: any) => {
+      const key = [o.itemName, o.size, o.opt1, o.opt2].join('｜');
+      if (!byKey[key]) byKey[key] = { itemName: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: 0, subtotal: 0 };
+      byKey[key].qty += Number(o.qty);
+      byKey[key].subtotal += Number(o.subtotal);
+      total += Number(o.subtotal);
+    });
+    out.push({
+      id: s.id, company: s.company, organizer: s.organizer,
+      deliveryDate: s.deliveryDate, deliveryTime: s.deliveryTime, fulfillment: s.fulfillment,
+      address: s.address, status: s.status,
+      items: Object.values(byKey), total,
+    });
+  }
+  return { ok: true, sessions: out };
+}
+
+async function vendorComplete(p: any) {
+  await checkVendorPassword(String(p.password || ''));
+  const { data, error: findErr } = await supabase.from('sessions').select('status').eq('id', p.sessionId).maybeSingle();
+  if (findErr) throw new Error(findErr.message);
+  if (!data) throw new Error('找不到這個揪團');
+  if (data.status !== '已送單') throw new Error('要先送單，店家出餐後才能標記為完成');
+  const { error } = await supabase.from('sessions').update({ status: '已完成' }).eq('id', p.sessionId);
+  if (error) throw new Error(error.message);
+  return { ok: true, message: '已標記為完成' };
+}
+
+/* ============ 主 Router ============ */
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
+
+  const url = new URL(req.url);
+  try {
+    if (req.method === 'GET') {
+      const action = url.searchParams.get('action');
+      const p = Object.fromEntries(url.searchParams.entries());
+      switch (action) {
+        case 'getMenu': {
+          const [menu, settings] = await Promise.all([getMenu(), getSettings()]);
+          return json({ ok: true, menu, settings });
+        }
+        case 'getOrderPageData': {
+          const session = await findSession(p.session);
+          const [menu, settings] = await Promise.all([getMenu(), getSettings()]);
+          const existingOrder = session && p.edit ? await getOrderByCode(p.session, p.edit) : [];
+          return json({ ok: true, session, menu, settings, existingOrder });
+        }
+        case 'getAdminData': {
+          const session = await findSession(p.session);
+          if (!session || session.token !== p.token) throw new Error('連結無效，或管理權杖不正確');
+          const [orders, settings] = await Promise.all([getOrdersForSession(p.session, false), getSettings()]);
+          return json({ ok: true, session, orders, settings });
+        }
+        default:
+          return json({ ok: false, error: '未知的操作：' + action });
+      }
+    }
+
+    if (req.method === 'POST') {
+      let payload: any = {};
+      try { payload = await req.json(); } catch { throw new Error('請求格式錯誤'); }
+      switch (payload.action) {
+        case 'createSession': return json(await createSession(payload));
+        case 'submitOrder': return json(await submitOrderCore(payload));
+        case 'updateOrder': return json(await updateOrder(payload));
+        case 'cancelOrder': return json(await cancelOrder(payload));
+        case 'finalizeSession': return json(await finalizeSession(payload));
+        case 'completeSession': return json(await completeSession(payload));
+        case 'vendorLogin': return json(await vendorLogin(payload));
+        case 'vendorOrders': return json(await vendorOrders(payload));
+        case 'vendorComplete': return json(await vendorComplete(payload));
+        default: return json({ ok: false, error: '未知的操作：' + payload.action });
+      }
+    }
+
+    return json({ ok: false, error: '不支援的方法' }, 405);
+  } catch (err) {
+    return fail(err);
+  }
+});

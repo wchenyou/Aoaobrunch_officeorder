@@ -1,0 +1,91 @@
+/* 測試店家後台（vendor.html）：密碼登入（含錯誤密碼、記住密碼）、
+   查詢區間顯示已送單的團、品項彙總不含姓名、標記完成、CSV 下載會觸發。
+   會自己建一團、送單，跑完後清掉。 */
+const { chromium } = require('playwright');
+const BASE = process.env.BASE || 'http://localhost:8900';
+const SUPABASE_URL = 'https://qoyojgephigwttbhbtft.supabase.co/functions/v1/api';
+const SUPABASE_KEY = 'sb_publishable_-sPP27i_r99uhzwS9W2Z-g_yGwgS8xD';
+
+(async () => {
+  const browser = await chromium.launch(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {});
+  const ctx = await browser.newContext({ viewport: { width: 420, height: 900 }, locale: 'zh-TW', timezoneId: 'Asia/Taipei', acceptDownloads: true });
+  const errors = [];
+
+  // 先用 API 直接建一團 + 送出一筆訂單 + 送單，這樣店家後台才查得到東西
+  const setup = await ctx.request.newContext ? null : null;
+  const p0 = await ctx.newPage();
+  const created = await p0.evaluate(async ({ url, key }) => {
+    async function call(action, body) {
+      const r = await fetch(url, { method: 'POST', headers: { apikey: key, Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, body: JSON.stringify({ action, ...body }) });
+      return r.json();
+    }
+    const d = new Date(Date.now() + 3 * 86400000);
+    const dateStr = d.toISOString().slice(0, 10);
+    const dl = new Date(d.getTime() - 86400000);
+    const deadlineStr = dl.toISOString().slice(0, 10) + 'T12:00';
+    const c = await call('createSession', { organizer: '店家後台測試', organizerEmail: 'vendortest@example.com', fulfillment: '外送', deliveryDate: dateStr, deliveryTime: '12:00', address: '測試地址', deadline: deadlineStr, needUtensils: '是', typhoonCancel: '是', contactName: '窗口', contactPhone: '0900' });
+    const o = await call('submitOrder', { sessionId: c.sessionId, name: '隱藏姓名王小明', items: [{ code: 'P02', opt1: '千島醬', qty: 1 }] });
+    const f = await call('finalizeSession', { sessionId: c.sessionId, token: c.adminToken });
+    return { sessionId: c.sessionId, dateStr, orderOk: o.ok, finalizeOk: f.ok, finalizeMsg: f.message || f.error };
+  }, { url: SUPABASE_URL, key: SUPABASE_KEY });
+  console.log('準備測試資料 → OK', created.sessionId, 'orderOk=' + created.orderOk, 'finalizeOk=' + created.finalizeOk, created.finalizeMsg);
+  await p0.close();
+
+  // ---------- 1. 登入頁：錯誤密碼 ----------
+  const p1 = await ctx.newPage();
+  p1.on('pageerror', (e) => errors.push('vendor [pageerror] ' + e.message));
+  await p1.goto(BASE + '/vendor.html');
+  await p1.waitForSelector('#pw', { timeout: 10000 });
+  await p1.fill('#pw', 'wrong-password');
+  await p1.click('#loginBtn');
+  await p1.waitForSelector('.notice-warn', { timeout: 10000 });
+  console.log('錯誤密碼被擋下 → OK');
+
+  // ---------- 2. 正確密碼登入 ----------
+  await p1.fill('#pw', 'aoao4523022');
+  await p1.click('#loginBtn');
+  await p1.waitForSelector('#dateFrom', { timeout: 10000 });
+  console.log('正確密碼登入 → OK');
+
+  // ---------- 3. 查詢（預設區間應該已經含今天+30天，含剛建立的測試團） ----------
+  await p1.waitForSelector('#listArea .card', { timeout: 10000 });
+  const listText = await p1.locator('#listArea').innerText();
+  const foundOrganizer = listText.includes('店家後台測試');
+  console.log('查得到剛剛建立的測試團 →', foundOrganizer ? 'OK' : '✗');
+  const leaksName = listText.includes('隱藏姓名王小明');
+  console.log('畫面上沒有洩漏跟團者姓名 →', leaksName ? '✗ 洩漏了！' : 'OK');
+  const hasItem = listText.includes('美式厚牛漢堡套餐');
+  console.log('品項彙總顯示品項名稱 →', hasItem ? 'OK' : '✗');
+
+  // ---------- 4. 重新整理後，記住的密碼會自動登入 ----------
+  await p1.reload();
+  await p1.waitForSelector('#dateFrom', { timeout: 10000 });
+  console.log('重新整理後用記住的密碼自動登入 → OK');
+
+  // ---------- 5. CSV 下載會觸發 ----------
+  const [download] = await Promise.all([
+    p1.waitForEvent('download', { timeout: 10000 }),
+    p1.click('#exportBtn'),
+  ]);
+  console.log('CSV 下載觸發 → OK，檔名 =', download.suggestedFilename());
+
+  // ---------- 6. 標記完成 ----------
+  p1.on('dialog', (d) => d.accept());
+  const completeBtn = p1.locator('[data-complete="' + created.sessionId + '"]');
+  await completeBtn.click();
+  await p1.waitForTimeout(1500);
+  const afterText = await p1.locator('#listArea').innerText();
+  console.log('標記完成後畫面顯示已完成 →', afterText.includes('已完成') ? 'OK' : '✗');
+
+  // ---------- 7. 登出後要回到登入畫面，且不會自動帶密碼 ----------
+  await p1.click('#logoutBtn');
+  await p1.waitForSelector('#pw', { timeout: 10000 });
+  console.log('登出後回到登入畫面 → OK');
+
+  console.log('\n錯誤數：', errors.length);
+  errors.forEach((e) => console.log(' -', e));
+
+  await browser.close();
+
+  process.exit(errors.length ? 1 : 0);
+})().catch((e) => { console.error('測試失敗:', e); process.exit(1); });

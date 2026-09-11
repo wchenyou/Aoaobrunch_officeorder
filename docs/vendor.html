@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>店家後台｜嗷嗷早午餐</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27><rect width=%2764%27 height=%2764%27 rx=%2714%27 fill=%27%23F08A24%27/><g fill=%27white%27><ellipse cx=%2732%27 cy=%2742%27 rx=%2713%27 ry=%2710.5%27/><ellipse cx=%2714%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/><ellipse cx=%2726%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2738%27 cy=%2720%27 rx=%275.5%27 ry=%277.5%27/><ellipse cx=%2750%27 cy=%2728%27 rx=%275.5%27 ry=%277%27/></g></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="top"></div>
+<div class="wrap"><div id="page"></div></div>
+
+<script src="config.js"></script>
+<script src="api.js"></script>
+<script src="ui.js"></script>
+<script>
+document.getElementById('top').innerHTML = renderTopbar('店家後台');
+const page = document.getElementById('page');
+
+/* 密碼只存在這台裝置，登入一次之後不用每次都輸入。
+   密碼本身是「設定」表裡的「店家後台密碼」，店家想換密碼直接在
+   Supabase 後台改那一格就好，不用找人改程式碼。 */
+const PW_KEY = 'aoao_vendor_pw';
+let PASSWORD = '';
+try { PASSWORD = localStorage.getItem(PW_KEY) || ''; } catch (e) { /* 無痕模式 */ }
+
+let SESSIONS = [];
+
+if (PASSWORD) {
+  tryLoad(PASSWORD, true);
+} else {
+  renderLogin();
+}
+
+function renderLogin(errMsg) {
+  page.innerHTML =
+    '<h1>店家後台 🐾</h1>' +
+    '<p class="muted">看目前收到的訂單、標記已經出餐完成的團，還可以匯出一段期間的訂單資料。</p>' +
+    '<div class="card narrow" style="max-width:420px;">' +
+      '<div class="card-head"><span class="dot"></span><h2>請輸入密碼</h2></div>' +
+      (errMsg ? '<div class="notice notice-warn" style="margin-bottom:12px;"><span class="ico">⚠️</span><div>' + escapeHtml(errMsg) + '</div></div>' : '') +
+      '<div class="field"><label for="pw">密碼</label><input type="password" id="pw" placeholder="向系統管理者索取"></div>' +
+      '<button type="button" class="btn btn-primary btn-block" id="loginBtn">登入</button>' +
+    '</div>';
+  document.getElementById('pw').focus();
+  document.getElementById('loginBtn').addEventListener('click', doLogin);
+  document.getElementById('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+}
+
+function doLogin() {
+  const pw = document.getElementById('pw').value.trim();
+  if (!pw) return;
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 確認中…';
+  tryLoad(pw, false);
+}
+
+/** silent=true 是「這台裝置記住的密碼，先默默試試看」，錯了就默默退回登入畫面，不嚇到人 */
+function tryLoad(pw, silent) {
+  apiPost('vendorLogin', { password: pw }).then(function () {
+    PASSWORD = pw;
+    try { localStorage.setItem(PW_KEY, pw); } catch (e) { /* 略過 */ }
+    renderShell();
+    loadOrders();
+  }).catch(function (err) {
+    try { localStorage.removeItem(PW_KEY); } catch (e) { /* 略過 */ }
+    if (!silent) renderLogin(err.message || '密碼不正確');
+    else renderLogin();
+  });
+}
+
+function logout() {
+  try { localStorage.removeItem(PW_KEY); } catch (e) { /* 略過 */ }
+  PASSWORD = '';
+  renderLogin();
+}
+
+/* ---------- 主畫面 ---------- */
+
+function todayStr(offsetDays) {
+  const d = new Date(Date.now() + (offsetDays || 0) * 86400000);
+  return d.toISOString().slice(0, 10);
+}
+
+function renderShell() {
+  page.innerHTML =
+    '<h1>店家後台 🐾</h1>' +
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>查詢區間</h2><span class="spacer"></span>' +
+        '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button></div>' +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="dateFrom">預訂日期從</label><input type="date" id="dateFrom" value="' + todayStr(-30) + '"></div>' +
+        '<div class="field"><label for="dateTo">到</label><input type="date" id="dateTo" value="' + todayStr(30) + '"></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
+        '<button class="btn btn-primary" id="queryBtn" style="flex:1;min-width:120px;">查詢</button>' +
+        '<button class="btn btn-ghost" id="exportBtn" style="flex:1;min-width:120px;">⬇️ 下載 CSV</button>' +
+      '</div>' +
+    '</div>' +
+    '<div id="listArea"></div>';
+
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  document.getElementById('queryBtn').addEventListener('click', loadOrders);
+  document.getElementById('exportBtn').addEventListener('click', exportCsv);
+}
+
+function loadOrders() {
+  const listArea = document.getElementById('listArea');
+  const dateFrom = document.getElementById('dateFrom').value;
+  const dateTo = document.getElementById('dateTo').value;
+  listArea.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
+
+  apiPost('vendorOrders', { password: PASSWORD, dateFrom: dateFrom, dateTo: dateTo }).then(function (res) {
+    SESSIONS = res.sessions || [];
+    renderList();
+  }).catch(function (err) {
+    listArea.innerHTML = '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
+  });
+}
+
+function renderList() {
+  const listArea = document.getElementById('listArea');
+  if (!SESSIONS.length) {
+    listArea.innerHTML = '<div class="empty">' + PAW_MARK + '<div>這段期間沒有已送單的團</div></div>';
+    return;
+  }
+  listArea.innerHTML = SESSIONS.map(function (s, i) {
+    const done = s.status === '已完成';
+    const badge = done ? '<span class="badge done">已完成</span>' : '<span class="badge warn">已送單</span>';
+    return (
+      '<div class="card">' +
+        '<div class="card-head"><span class="dot"></span><h2>' + escapeHtml(fmtDate(s.deliveryDate)) + '　' + escapeHtml(s.company || s.organizer) + '</h2>' +
+          '<span class="spacer"></span>' + badge + '</div>' +
+        '<div class="tiny" style="margin-bottom:10px;">' + escapeHtml(s.fulfillment) + (s.fulfillment === '外送' ? '　' + escapeHtml(s.address || '') : '') +
+          '　期望送達 ' + escapeHtml(s.deliveryTime || '') + '</div>' +
+        '<dl style="margin:0 0 12px;">' +
+          s.items.map(function (it) {
+            const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
+            return '<div class="meta-row"><dt>' + escapeHtml(it.itemName) + (specs ? '（' + escapeHtml(specs) + '）' : '') + '</dt>' +
+              '<dd>×' + it.qty + '　$' + it.subtotal + '</dd></div>';
+          }).join('') +
+        '</dl>' +
+        '<div class="cart-total" style="margin-bottom:' + (done ? '0' : '10px') + ';"><span>總計</span><span class="amount">$' + s.total + '</span></div>' +
+        (done ? '' : '<button type="button" class="btn btn-ghost btn-block btn-sm" data-complete="' + escapeHtml(s.id) + '">✅ 店家已出餐，標記完成</button>') +
+      '</div>'
+    );
+  }).join('');
+
+  listArea.querySelectorAll('[data-complete]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (!confirm('確定要標記這團已完成嗎？')) return;
+      btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 標記中…';
+      apiPost('vendorComplete', { password: PASSWORD, sessionId: btn.dataset.complete }).then(function () {
+        loadOrders();
+      }).catch(function (err) {
+        alert(err.message || String(err));
+        btn.disabled = false; btn.textContent = '✅ 店家已出餐，標記完成';
+      });
+    });
+  });
+}
+
+function fmtDate(s) {
+  return String(s || '').replace(/-/g, '/');
+}
+
+/* ---------- 匯出 CSV（品項彙總，不含跟團者姓名） ---------- */
+
+function csvCell(v) {
+  const s = String(v == null ? '' : v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function exportCsv() {
+  if (!SESSIONS.length) { alert('目前沒有資料可以匯出，先查詢一次看看。'); return; }
+  const header = ['揪團編號', '預訂日期', '公司／主揪', '取餐方式', '狀態', '品項名稱', '規格', '數量', '小計'];
+  const rows = [header];
+  SESSIONS.forEach(function (s) {
+    s.items.forEach(function (it) {
+      const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
+      rows.push([s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.fulfillment, s.status, it.itemName, specs, it.qty, it.subtotal]);
+    });
+  });
+  const csv = '﻿' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '嗷嗷團購訂單_' + document.getElementById('dateFrom').value + '_' + document.getElementById('dateTo').value + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>

@@ -1,4 +1,11 @@
 /*
+ * ⚠️ 已停用（2026-09-11 起）：正式環境的後端已經搬到 Supabase Edge Function
+ * （supabase/functions/api/index.ts），本機測試現在大多直接打真的 Supabase 專案
+ * （見 tools/test-supabase-live.js、tools/test-vendor.js），不用再靠這支假後端。
+ * 這支還留著是因為部分舊測試（test-flow.js／test-draft.js／test-recover.js）
+ * 還在用它，純前端邏輯沒變太多所以還能跑，但它模擬的是舊版 API 行為，
+ * 新功能不要再往這裡加。
+ *
  * 本機用的假後端：把 Code.gs 的 API 行為用 Node 重現一遍，
  * 同時把 docs/ 當靜態站台服務，讓前端不必真的接上 Apps Script 就能開發與測試。
  * 資料只放在記憶體，重開就清空。
