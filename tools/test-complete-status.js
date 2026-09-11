@@ -36,6 +36,8 @@ const BASE = process.env.BASE || 'http://localhost:8899';
 
   // ---------- 2. 重新整理首頁，確認狀態文字是「開團中」 ----------
   await p1.goto(BASE + '/index.html');
+  await p1.waitForSelector('#myGroupsToggle', { timeout: 8000 });
+  await p1.click('#myGroupsToggle');
   await p1.waitForSelector('#myGroups .badge', { timeout: 8000 });
   const badgeText = await p1.locator('#myGroups .badge').first().innerText();
   console.log('首頁狀態文字 =', badgeText, badgeText === '開團中' ? 'OK' : '✗ 應為「開團中」');

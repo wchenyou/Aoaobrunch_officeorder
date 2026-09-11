@@ -96,6 +96,8 @@ const BASE = process.env.BASE || 'http://localhost:8900';
 
   await browser.close();
 
-  // 清掉這次的測試資料
-  console.log('\n清理測試資料…');
+  // 這支測試只有前端的公開金鑰，資料表又刻意不對公開金鑰開放直接寫入，
+  // 所以測試建立的揪團沒辦法自己清掉——測完記得手動用 Supabase MCP 的
+  // execute_sql 把這次印出來的 session id 刪掉，不要留垃圾資料在正式專案裡。
+  console.log('\n⚠️ 記得手動清掉這次的測試揪團（上面印出的 session id）');
 })().catch((e) => { console.error('測試失敗:', e); process.exit(1); });

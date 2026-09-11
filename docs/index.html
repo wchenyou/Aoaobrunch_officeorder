@@ -29,9 +29,8 @@ page.innerHTML =
   '<h1>來揪一團吧 🐾</h1>' +
   '<p class="muted">填一次訂購資訊，系統會給你兩個連結：一個丟到辦公室群組讓大家點餐，一個你自己留著看訂單、按送單。</p>' +
 
-  '<div id="myGroups"></div>' +
-
-  menuButton() +
+  '<div class="quick-row" id="quickRow">' + menuButton() + '</div>' +
+  '<div id="myGroups" hidden></div>' +
 
   '<div class="notice notice-info" id="rules"><span class="ico">📌</span><div>載入店家規定中…</div></div>' +
 
@@ -239,37 +238,51 @@ document.getElementById('form').addEventListener('submit', function (e) {
     btn.textContent = '建立揪團';
   });
 });
-/* ---------- 你開過的團（存在這台裝置的瀏覽器裡） ---------- */
+/* ---------- 你開過的團（存在這台裝置的瀏覽器裡） ----------
+   收合在一顆小按鈕後面，不要一開頁面就佔掉最上面一大塊——
+   要開新團的人多半用不到這區塊，讓他直接看到表單比較重要。 */
 
 renderMyGroups();
 
 function renderMyGroups() {
-  const box = document.getElementById('myGroups');
-  const saved = loadMyGroups();
-  if (!saved.length) return;
+  const quickRow = document.getElementById('quickRow');
+  const panel = document.getElementById('myGroups');
+  let toggleBtn = null;
 
-  draw(saved);
+  function visibleGroups() {
+    /* 已完成的團不用再一直佔位子，這裡只留還需要主揪關注的團 */
+    return loadMyGroups().filter(function (g) { return g.status !== '已完成'; });
+  }
 
-  /* 跟後端確認一下目前狀態，避免顯示過期資訊 */
-  saved.slice(0, 3).forEach(function (g) {
-    apiGet('getAdminData', { session: g.id, token: g.token }).then(function (res) {
-      updateMyGroup(g.id, {
-        status: res.session.status,
-        deadline: res.session.deadline,
-        company: res.session.company,
-        deliveryDate: res.session.deliveryDate
+  function syncToggle(list) {
+    if (!list.length) {
+      if (toggleBtn) { toggleBtn.remove(); toggleBtn = null; }
+      panel.hidden = true;
+      return;
+    }
+    if (!toggleBtn) {
+      toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.id = 'myGroupsToggle';
+      toggleBtn.className = 'btn btn-ghost btn-sm';
+      toggleBtn.setAttribute('aria-expanded', 'false');
+      toggleBtn.addEventListener('click', function () {
+        const open = toggleBtn.getAttribute('aria-expanded') === 'true';
+        toggleBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        panel.hidden = open;
       });
-      draw(loadMyGroups());
-    }).catch(function () { /* 查不到就沿用本機那份 */ });
-  });
+      quickRow.appendChild(toggleBtn);
+    }
+    toggleBtn.innerHTML = '🐾 你開過的團（' + list.length + '）<span class="chev">▾</span>';
+  }
 
   function draw(list) {
-    /* 已完成的團不用再一直佔位子，這裡只留還需要主揪關注的團 */
-    const items = list.filter(function (g) { return g.status !== '已完成'; }).slice(0, 3);
-    if (!items.length) { box.innerHTML = ''; return; }
+    const items = list.slice(0, 3);
+    syncToggle(list);
+    if (!items.length) { panel.innerHTML = ''; return; }
 
-    box.innerHTML =
-      '<div class="card" style="border-color:var(--peach);">' +
+    panel.innerHTML =
+      '<div class="card" style="border-color:var(--peach);margin-top:10px;">' +
         '<div class="card-head"><span class="dot"></span><h2>你開過的團</h2>' +
           '<span class="spacer"></span><span class="tiny">這台裝置記得的</span></div>' +
         items.map(function (g) {
@@ -291,19 +304,44 @@ function renderMyGroups() {
         }).join('') +
       '</div>';
 
-    box.querySelectorAll('[data-go]').forEach(function (b) {
+    panel.querySelectorAll('[data-go]').forEach(function (b) {
       b.addEventListener('click', function () {
         const g = loadMyGroups().filter(function (x) { return x.id === b.dataset.go; })[0];
         if (g) location.href = adminUrlFor(g.id, g.token);
       });
     });
-    box.querySelectorAll('[data-forget]').forEach(function (b) {
+    panel.querySelectorAll('[data-forget]').forEach(function (b) {
       b.addEventListener('click', function () {
         forgetMyGroup(b.dataset.forget);
-        draw(loadMyGroups());
+        draw(visibleGroups());
       });
     });
   }
+
+  const saved = loadMyGroups();
+  draw(visibleGroups());
+
+  /* 跟後端確認一下目前狀態，避免顯示過期資訊；
+     如果後端已經找不到這個揪團（例如後端／資料庫整個換過），
+     本機留著的舊快取就沒意義了，直接忘掉，不要一直卡在畫面上。 */
+  saved.slice(0, 3).forEach(function (g) {
+    apiGet('getAdminData', { session: g.id, token: g.token }).then(function (res) {
+      updateMyGroup(g.id, {
+        status: res.session.status,
+        deadline: res.session.deadline,
+        company: res.session.company,
+        deliveryDate: res.session.deliveryDate
+      });
+      draw(visibleGroups());
+    }).catch(function (err) {
+      const msg = (err && err.message) || '';
+      if (msg.indexOf('連結無效') > -1 || msg.indexOf('管理權杖不正確') > -1) {
+        forgetMyGroup(g.id);
+        draw(visibleGroups());
+      }
+      /* 其他錯誤（例如網路暫時不通）就沿用本機那份，不要因為一次連線失敗就忘掉 */
+    });
+  });
 }
 </script>
 </body>

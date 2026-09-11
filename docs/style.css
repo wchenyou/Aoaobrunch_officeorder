@@ -404,6 +404,12 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 /* 有 data-zoomable 的圖都能點擊放大 */
 [data-zoomable] { cursor: zoom-in; }
 
+/* 「查看菜單」「你開過的團」這類次要動作擠在同一列，不要各自佔一整行 */
+.quick-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.quick-row .btn { flex: 1 1 180px; }
+.quick-row .btn .chev { margin-left: 6px; display: inline-block; transition: transform .2s; color: var(--ink-soft); }
+.quick-row .btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
 /* 內文裡的小連結，跟著設計系統的色票走，不用瀏覽器預設的藍色底線 */
 .link-inline { color: var(--orange-deep); font-weight: 700; }
 

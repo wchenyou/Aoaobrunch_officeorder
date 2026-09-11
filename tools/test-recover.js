@@ -45,6 +45,8 @@ const errs = [];
   p2.on('pageerror', e => errs.push('[reopen pageerror] ' + e.message));
   await p2.goto(BASE + '/index.html');
   await p2.waitForTimeout(1200);
+  const toggle2 = await p2.$('#myGroupsToggle');
+  if (toggle2) await toggle2.click();
   const hasBanner = await p2.isVisible('#myGroups .person');
   const bannerText = hasBanner ? (await p2.textContent('#myGroups')) : '';
   console.log('5. 重開首頁看到「你開過的團」→', hasBanner ? 'OK' : '✗ 沒出現');
@@ -73,6 +75,8 @@ const errs = [];
   await p3.waitForTimeout(1200);
   await p3.goto(BASE + '/index.html');
   await p3.waitForTimeout(1200);
+  const toggle3 = await p3.$('#myGroupsToggle');
+  if (toggle3) await toggle3.click();
   const nowRemembered = await p3.isVisible('#myGroups .person');
   console.log('8. 用信中連結開過之後，新裝置也記住了 →', nowRemembered ? 'OK' : '✗');
 
