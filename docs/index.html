@@ -138,6 +138,44 @@ const dateInput = document.getElementById('deliveryDate');
 const deadlineInput = document.getElementById('deadline');
 const deadlineHint = document.getElementById('deadlineHint');
 function pad(n) { return String(n).padStart(2, '0'); }
+
+/* 主揪直接在這裡點餐的內嵌點餐頁：不要有自己的捲軸（會被下拉條卡住，
+   跟外層頁面的捲動互相干擾），改成量出點餐頁實際內容高度，把 iframe
+   撐到一樣高，捲動統一回到最外層頁面。因為 order.html 跟這頁同源，
+   可以直接讀 contentDocument，不用 postMessage。
+
+   量高度故意只看 body.scrollHeight，不能用 documentElement（html）的
+   scrollHeight。點餐頁手機寬度會有 position:fixed 的底部購物車列，
+   fixed 元素是相對「iframe 自己的視窗高度」（也就是我們剛設好的
+   iframe.style.height）定位的，如果拿 html 的 scrollHeight 來量，
+   量到的高度會把這顆固定列的位置也算進去——而它的位置又回頭依賴我們
+   剛設的高度，兩邊互相影響，量出來的高度只會愈疊愈高、東西變少了也
+   不會縮回來。body.scrollHeight 只看一般排版流裡的內容，不會被
+   fixed 元素影響，量出來的高度才會跟著購物車內容增減正確伸縮。 */
+function setupInlineOrderResize(iframe) {
+  if (!iframe) return;
+  function resize() {
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc || !doc.body) return;
+      const h = doc.body.scrollHeight;
+      if (h > 0) iframe.style.height = h + 'px';
+    } catch (e) { /* 量不到就算了，保留原本的高度 */ }
+  }
+  iframe.addEventListener('load', function () {
+    resize();
+    try {
+      const ro = new ResizeObserver(resize);
+      ro.observe(iframe.contentDocument.body);
+    } catch (e) { /* 舊瀏覽器沒有 ResizeObserver，就只靠下面的定時量測 */ }
+    /* 保險：規格面板展開/收合、加入購物車這類變化有時剛好卡在
+       ResizeObserver 通知的那一瞬間量到還沒排版完的高度，單靠事件會
+       留下量不準的殘差。body.scrollHeight 不會被 fixed 元素污染，定期
+       重量一次很安全、不會愈疊愈高，乾脆一直開著當保險，量到不對也會
+       在下一次自己修正回來。 */
+    setInterval(resize, 800);
+  });
+}
 (function () {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -226,9 +264,10 @@ document.getElementById('form').addEventListener('submit', function (e) {
         '<div class="card-head"><span class="dot"></span><h2>🐾 主揪也直接在這裡點餐</h2></div>' +
         '<div class="tiny" style="margin-bottom:10px;">不用跳頁，下面就是同事看到的同一份點餐頁，直接選就好。' +
           '<a class="link-inline" href="' + orderUrl + '" target="_blank" rel="noopener" style="margin-left:6px;">在新分頁開啟</a></div>' +
-        '<div class="inline-order-wrap"><iframe class="inline-order-frame" src="' + orderUrl + '" title="主揪點餐"></iframe></div>' +
+        '<div class="inline-order-wrap"><iframe class="inline-order-frame" id="inlineOrderFrame" src="' + orderUrl + '" title="主揪點餐"></iframe></div>' +
       '</div>';
 
+    setupInlineOrderResize(document.getElementById('inlineOrderFrame'));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }).catch(function (err) {
     errorMsg.innerHTML = '<div class="notice notice-warn" style="margin-top:12px;"><span class="ico">⚠️</span><div>' +

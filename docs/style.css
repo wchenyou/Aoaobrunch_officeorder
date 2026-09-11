@@ -486,18 +486,19 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 /* 內文裡的小連結，跟著設計系統的色票走，不用瀏覽器預設的藍色底線 */
 .link-inline { color: var(--orange-deep); font-weight: 700; }
 
-/* 主揪建團後直接嵌入點餐頁，不用再跳一次頁 */
+/* 主揪建團後直接嵌入點餐頁，不用再跳一次頁。刻意不設固定高度／不讓
+   iframe 自己捲動——那樣裡面會多一條下拉條，跟外層頁面的捲動卡在一起、
+   很難用。改成用 JS 量出點餐頁實際內容高度（見 setupInlineOrderResize），
+   把 iframe 撐到剛好那麼高，捲動就統一回到最外層頁面。 */
 .inline-order-wrap {
   border: 1px solid var(--border-soft);
   border-radius: var(--r-md);
-  overflow: hidden;
   background: var(--surface-alt);
 }
 .inline-order-frame {
   display: block;
   width: 100%;
-  height: 82vh;
-  min-height: 560px;
+  height: 400px; /* JS 量到實際高度前的暫定值，量到之後會被覆蓋 */
   border: 0;
 }
 
