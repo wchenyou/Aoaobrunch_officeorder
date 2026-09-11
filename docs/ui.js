@@ -19,8 +19,12 @@ const PAW_MARK = '<svg viewBox="0 0 64 64" aria-hidden="true">' +
 function renderTopbar(subtitle) {
   return '<header class="topbar">' +
     '<div class="topbar-inner">' + PAW_SVG +
-    '<div><div class="brand">嗷嗷早午餐</div>' +
+    '<div class="topbar-brand"><div class="brand">嗷嗷早午餐</div>' +
     '<div class="brand-sub">' + escapeHtml(subtitle || '辦公室團購') + '</div></div>' +
+    /* 空的動作區，預設不佔任何視覺空間。像店家後台這種需要在頁首放
+       「登出」之類帳號層級按鈕的頁面，登入後自己把內容塞進
+       #topbarActions 就好，不用整個標頭重畫一次。 */
+    '<div class="topbar-actions" id="topbarActions"></div>' +
     '</div>' +
     '<svg class="wave" viewBox="0 0 1440 20" preserveAspectRatio="none" aria-hidden="true">' +
     '<path d="M0,20 C240,2 480,2 720,10 C960,18 1200,18 1440,6 L1440,20 Z"/></svg>' +

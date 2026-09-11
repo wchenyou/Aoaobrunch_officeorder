@@ -101,7 +101,12 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  /* 標頭右上角掛了登出之類的按鈕時，寧可讓那些按鈕自己整組掉到下一行，
+     也不要把「嗷嗷早午餐」這幾個字擠到換行——品牌名稱要完整、不斷行。 */
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
+.topbar-brand { flex-shrink: 0; }
 
 .paw {
   width: 38px;
@@ -125,6 +130,25 @@ body {
   color: rgba(255,255,255,.82);
   font-weight: 500;
 }
+
+/* 標頭右側的動作區（例如店家後台的「登出」）：預設是空的、不佔空間，
+   有內容時才會撐開、貼齊最右邊。按鈕用白色半透明的樣式，跟一般卡片
+   裡用的 .btn-ghost（實色背景）不同——那個放在這片橘色底上會很突兀。 */
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.topbar-actions .btn {
+  background: rgba(255,255,255,.16);
+  border-color: rgba(255,255,255,.55);
+  color: #fff;
+  white-space: nowrap;
+}
+.topbar-actions .btn:hover:not(:disabled) { background: rgba(255,255,255,.26); border-color: #fff; }
+.topbar-actions .btn:disabled { opacity: .6; }
 
 .topbar .wave {
   position: absolute;
@@ -243,7 +267,7 @@ p:last-child { margin-bottom: 0; }
 .req { color: var(--berry); }
 
 input[type="text"], input[type="tel"], input[type="email"],
-input[type="date"], input[type="datetime-local"], textarea {
+input[type="date"], input[type="datetime-local"], select, textarea {
   width: 100%;
   padding: 11px 13px;
   border: 1.5px solid var(--border);
@@ -254,6 +278,12 @@ input[type="date"], input[type="datetime-local"], textarea {
   color: var(--ink);
   transition: border-color .15s, background .15s;
 }
+/* select 原生就是瀏覽器預設樣式，沒特別處理的話會跟旁邊的輸入框、
+   按鈕格格不入（方角、字體、顏色都對不上）。上面那條規則先讓它跟
+   輸入框長得一樣，下拉箭頭本身交給瀏覽器自己畫——color-scheme 已經
+   宣告過 light dark，瀏覽器會自動配一個跟深色/淺色模式一致的箭頭
+   顏色，不用自己刻。 */
+select { cursor: pointer; }
 input:focus, textarea:focus {
   outline: none;
   border-color: var(--orange);

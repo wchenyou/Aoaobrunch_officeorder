@@ -84,6 +84,8 @@ function logout() {
   try { localStorage.removeItem(PW_KEY); } catch (e) { /* 略過 */ }
   PASSWORD = '';
   historyLoadedOnce = false;
+  const actions = document.getElementById('topbarActions');
+  if (actions) actions.innerHTML = ''; // 回到登入畫面，標頭右上角的登出/通知按鈕也一起收掉
   renderLogin();
 }
 
@@ -95,19 +97,23 @@ function todayStr(offsetDays) {
 }
 
 function renderShell() {
+  /* 登出、開啟通知都是「帳號/裝置層級」的控制項，放進最上面那條橘色
+     標頭的右上角（#topbarActions，跟 renderTopbar 共用），不要跟下面
+     分頁列（待處理／依日期查詢）的內容操作混在一起。 */
+  const actions = document.getElementById('topbarActions');
+  if (actions) {
+    actions.innerHTML =
+      '<button class="btn btn-sm" id="pushToggleBtn" hidden></button>' +
+      '<button class="btn btn-sm" id="logoutBtn">登出</button>';
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+  }
+
   page.innerHTML =
     '<h1>店家後台 🐾</h1>' +
-    /* 登出、開啟通知都是「帳號/裝置層級」的控制項，放在最右上角同一列，
-       跟下面分頁列（待處理／依日期查詢）的內容操作分開。按鈕文字都
-       盡量短，手機寬度也不會擠成兩行。 */
     '<div class="vendor-topbar">' +
       '<div class="seg">' +
         '<input type="radio" name="vtab" id="vtabPending" checked><label for="vtabPending">📥 待處理訂單</label>' +
         '<input type="radio" name="vtab" id="vtabHistory"><label for="vtabHistory">🔍 依日期查詢</label>' +
-      '</div>' +
-      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
-        '<button class="btn btn-ghost btn-sm" id="pushToggleBtn" hidden style="white-space:nowrap;"></button>' +
-        '<button class="btn btn-ghost btn-sm" id="logoutBtn" style="white-space:nowrap;">登出</button>' +
       '</div>' +
     '</div>' +
     '<div class="tiny" id="pushHint" style="margin:-10px 0 16px;"></div>' +
@@ -115,7 +121,6 @@ function renderShell() {
     '<div id="pendingPanel"></div>' +
     '<div id="historyPanel" hidden></div>';
 
-  document.getElementById('logoutBtn').addEventListener('click', logout);
   document.getElementById('vtabPending').addEventListener('change', showPending);
   document.getElementById('vtabHistory').addEventListener('change', showHistory);
 
