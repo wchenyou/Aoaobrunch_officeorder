@@ -1,6 +1,7 @@
 /* 測試：主揪頁／點餐頁的「📋 查看菜單」按鈕點下去會秀出完整菜單相片（lightbox），
    點餐清單裡的品項縮圖也能點擊放大，
-   以及主揪建團後不跳頁、直接在同一頁內嵌點餐。 */
+   以及主揪建團後有獨立的「主揪自己也要點餐」按鈕（跳到另一頁 order.html，
+   不是內嵌），點餐頁上會出現只有主揪自己裝置看得到的「回到管理頁面」連結。 */
 const { chromium } = require('playwright');
 const BASE = process.env.BASE || 'http://localhost:8899';
 
@@ -27,7 +28,7 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   await p1.waitForSelector('[data-lightbox]', { state: 'detached', timeout: 3000 });
   console.log('index.html: 點空白處後 lightbox 關閉 = true');
 
-  // ---------- 2. 建團 -> 成功畫面應該直接內嵌點餐頁（iframe），不用跳頁 ----------
+  // ---------- 2. 建團 -> 成功畫面有獨立的「主揪自己也要點餐」按鈕（跳頁，不內嵌） ----------
   async function pick(name, value) { await p1.check('input[name="' + name + '"][value="' + value + '"]'); }
   await p1.fill('#organizer', '測試主揪Zoom');
   await p1.fill('#organizerEmail', 'organizer-zoom@test.com');
@@ -47,23 +48,21 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   await p1.fill('#contactPhone', '0912345678');
   await p1.fill('#contactAvailableTime', '下午');
   await p1.click('#submitBtn');
-  await p1.waitForSelector('.inline-order-frame', { timeout: 8000 });
-  console.log('index.html: 建團成功後出現 .inline-order-frame（同一頁內嵌點餐） = true');
-  const frameSrc = await p1.getAttribute('.inline-order-frame', 'src');
-  console.log('index.html: iframe src =', frameSrc);
+  await p1.waitForSelector('#adminUrl', { timeout: 8000 });
+  const ownOrderLink = p1.locator('a', { hasText: '主揪自己也要點餐' });
+  await ownOrderLink.waitFor({ timeout: 8000 });
+  const ownOrderHref = await ownOrderLink.getAttribute('href');
+  console.log('index.html: 建團成功後出現「主揪自己也要點餐」按鈕（跳頁，不內嵌） =', !!ownOrderHref);
+  console.log('index.html: 沒有殘留的內嵌 iframe =', (await p1.locator('iframe').count()) === 0);
 
-  const orderFrame = p1.frameLocator('.inline-order-frame');
-  await orderFrame.locator('.item').first().waitFor({ timeout: 10000 });
-  const itemCountInFrame = await orderFrame.locator('.item').count();
-  console.log('index.html: 內嵌的點餐頁裡有品項數 =', itemCountInFrame);
-  const menuBtnInFrame = await orderFrame.locator('[data-view-menu]').count();
-  console.log('index.html: 內嵌點餐頁裡也有「查看菜單」按鈕 =', menuBtnInFrame > 0);
-
-  // ---------- 3. order.html 本身：縮圖可點擊放大，且不會誤觸展開規格面板 ----------
+  // ---------- 3. order.html 本身：主揪自己的裝置點這顆連結過去，應該看得到
+  //   「回到管理頁面」，而且縮圖可點擊放大、不會誤觸展開規格面板 ----------
   const p2 = await ctx.newPage();
   p2.on('pageerror', e => errors.push('order [pageerror] ' + e.message));
-  await p2.goto(frameSrc);
+  await p2.goto(ownOrderHref);
   await p2.waitForSelector('.item-thumb', { timeout: 8000 });
+  const backToAdminLink = await p2.locator('a', { hasText: '回到管理頁面' }).count();
+  console.log('order.html: 主揪自己的裝置看得到「回到管理頁面」 =', backToAdminLink > 0 ? 'OK' : '✗');
   await p2.locator('.item-thumb').first().click();
   await p2.waitForTimeout(300);
   const lbOpen = (await p2.locator('[data-lightbox] img').count()) > 0 && await p2.isVisible('[data-lightbox] img');
@@ -79,6 +78,16 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   await p2.waitForSelector('[data-lightbox]', { timeout: 3000 });
   const src2 = await p2.locator('[data-lightbox] img').getAttribute('src');
   console.log('order.html: 查看菜單按鈕也能秀出完整菜單相片 =', src2.indexOf('full-menu.jpg') > -1);
+
+  // ---------- 4. 換一台裝置（全新的瀏覽器 context，沒有主揪的 localStorage）
+  //   點同一個點餐連結，不該看到「回到管理頁面」——那是主揪自己才有的捷徑 ----------
+  const ctx2 = await browser.newContext({ viewport: { width: 420, height: 900 }, locale: 'zh-TW', timezoneId: 'Asia/Taipei' });
+  const p3 = await ctx2.newPage();
+  await p3.goto(ownOrderHref);
+  await p3.waitForSelector('.item-thumb', { timeout: 8000 });
+  const backToAdminLinkOtherDevice = await p3.locator('a', { hasText: '回到管理頁面' }).count();
+  console.log('order.html: 同事的裝置「沒有」看到「回到管理頁面」 =', backToAdminLinkOtherDevice === 0 ? 'OK' : '✗');
+  await ctx2.close();
 
   console.log('\n錯誤數：', errors.length);
   errors.forEach(e => console.log(' -', e));

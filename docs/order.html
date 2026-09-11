@@ -57,7 +57,17 @@ function render(existing) {
   const left = timeLeft(SESSION.deadline);
   const closed = SESSION.status !== '收單中' || !left;
 
+  /* 如果這台裝置就是開這團的主揪（localStorage 裡找得到管理權杖——
+     建團當下就會存進去），加一顆「回到管理頁面」的捷徑，點完餐不用
+     再回頭翻信件找管理連結。只有主揪自己的裝置查得到，同事點同一
+     個點餐連結不會看到這顆按鈕。 */
+  const myGroup = loadMyGroups().filter(function (g) { return g.id === SESSION_ID; })[0];
+  const adminLinkHtml = myGroup
+    ? '<a class="link-inline" href="admin.html?session=' + encodeURIComponent(SESSION_ID) + '&admin=' + encodeURIComponent(myGroup.token) + '" style="display:inline-block;margin-bottom:10px;">← 回到管理頁面</a>'
+    : '';
+
   let html =
+    adminLinkHtml +
     '<h1>' + escapeHtml(SESSION.organizer) + ' 揪的團 🐾</h1>' +
 
     /* 店家的行銷文案，讓第一次點開連結的同事也知道這是什麼、為什麼要點。
