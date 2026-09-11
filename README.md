@@ -166,6 +166,7 @@ docs/              ← GitHub Pages 就是指這個資料夾
 tools/             開發用，不會被部署
   mock-server.js   本機假後端 + 靜態站台
   test-*.js        Playwright 端對端測試
+screenshots/       開發過程的畫面預覽，純參考
 ```
 
 ## 在本機開發
