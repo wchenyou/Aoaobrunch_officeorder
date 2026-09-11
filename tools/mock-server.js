@@ -59,15 +59,21 @@ function parseTaipei(s) {
   const hh = m[4] !== undefined ? +m[4] : 0, mi = m[5] !== undefined ? +m[5] : 0;
   return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], hh, mi, 0) - TAIPEI);
 }
+/** 把一個代表「台北時間某個瞬間」的 Date 換成 yyyy-MM-dd（台北曆日）字串，方便比較日期 */
+function taipeiDateStr(d) {
+  return new Date(d.getTime() + TAIPEI).toISOString().slice(0, 10);
+}
 
 function createSession(p) {
   if (!p.organizer) throw new Error('請填寫主揪姓名');
   if (!p.organizerEmail || p.organizerEmail.indexOf('@') < 0) throw new Error('請填寫主揪 Email，管理連結會寄一份到這個信箱，之後才找得回來');
-  if (!p.company || !p.taxId) throw new Error('公司名稱與統一編號為必填（不需要發票請在統編填「否」）');
   if (!p.contactName || !p.contactPhone) throw new Error('請填寫聯絡窗口姓名與電話');
   if (p.fulfillment === '外送' && !p.address) throw new Error('外送需要填寫外送地址');
   const deliveryDate = parseTaipei(p.deliveryDate);
   if (!deliveryDate) throw new Error('請填寫正確的預訂日期');
+  if (taipeiDateStr(deliveryDate) <= taipeiDateStr(new Date())) {
+    throw new Error('預訂日期最早只能選明天，不能選今天或更早的日期');
+  }
   const deadline = parseTaipei(p.deadline);
   if (!deadline) throw new Error('請填寫正確的收單截止時間');
   if (deadline.getTime() <= Date.now()) throw new Error('收單截止時間必須晚於現在');
@@ -79,7 +85,7 @@ function createSession(p) {
   sessions[id] = {
     id, organizer: p.organizer, organizerEmail: p.organizerEmail || '', createdAt: new Date(),
     deadline, fulfillment: p.fulfillment, deliveryDate, deliveryTime: p.deliveryTime || '',
-    address: p.address || '', needUtensils: p.needUtensils || '', company: p.company, taxId: p.taxId,
+    address: p.address || '', needUtensils: p.needUtensils || '', company: p.company || '', taxId: p.taxId || '',
     contactName: p.contactName, contactPhone: p.contactPhone, contactAvailableTime: p.contactAvailableTime || '',
     typhoonCancel: p.typhoonCancel || '', note: p.note || '', status: '收單中', token
   };

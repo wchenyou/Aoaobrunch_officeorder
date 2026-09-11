@@ -228,7 +228,7 @@ function renderAll() {
   ];
   if (SESSION.fulfillment === '外送') meta.push(['外送地址', SESSION.address]);
   meta.push(['需要餐具', SESSION.needUtensils]);
-  meta.push(['公司／統編', SESSION.company + '　' + SESSION.taxId]);
+  meta.push(['公司／統編', (SESSION.company || '（未填）') + '　' + (SESSION.taxId || '（未填）')]);
   meta.push(['聯絡窗口', SESSION.contactName + '　' + SESSION.contactPhone]);
   meta.push(['方便接聽', SESSION.contactAvailableTime]);
   meta.push(['颱風假取消', SESSION.typhoonCancel]);

@@ -264,12 +264,18 @@ function createSession_(p) {
   if (!p.organizerEmail || p.organizerEmail.indexOf('@') < 0) {
     throw new Error('請填寫主揪 Email，管理連結會寄一份到這個信箱，之後才找得回來');
   }
-  if (!p.company || !p.taxId) throw new Error('公司名稱與統一編號為必填（不需要發票請在統編填「否」）');
   if (!p.contactName || !p.contactPhone) throw new Error('請填寫聯絡窗口姓名與電話');
   if (p.fulfillment === '外送' && !p.address) throw new Error('外送需要填寫外送地址');
 
   const deliveryDate = parseTaipeiDateTime_(p.deliveryDate);
   if (!deliveryDate) throw new Error('請填寫正確的預訂日期');
+
+  // 預訂日期最早只能選明天（用日期字串比較，不受伺服器時區影響）
+  const todayStr = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  const deliveryDateStr = Utilities.formatDate(deliveryDate, 'Asia/Taipei', 'yyyy-MM-dd');
+  if (deliveryDateStr <= todayStr) {
+    throw new Error('預訂日期最早只能選明天，不能選今天或更早的日期');
+  }
 
   const deadline = parseTaipeiDateTime_(p.deadline);
   if (!deadline) throw new Error('請填寫正確的收單截止時間');
@@ -290,7 +296,7 @@ function createSession_(p) {
     sheet.appendRow([
       id, p.organizer, p.organizerEmail || '', new Date(), deadline,
       p.fulfillment, deliveryDate, p.deliveryTime || '', p.address || '',
-      p.needUtensils || '', p.company, p.taxId, p.contactName, p.contactPhone,
+      p.needUtensils || '', p.company || '', p.taxId || '', p.contactName, p.contactPhone,
       p.contactAvailableTime || '', p.typhoonCancel || '', p.note || '', '收單中', token
     ]);
   } finally {
@@ -338,7 +344,7 @@ function sendOrganizerLinks_(id, token, p) {
     '只有這個連結能看到全部訂單、按下送單。',
     '',
     '── 這次的團 ──',
-    '公司：' + p.company,
+    '公司：' + (p.company || '（未填）'),
     '取餐方式：' + p.fulfillment,
     '預訂日期：' + formatDate_(parseTaipeiDateTime_(p.deliveryDate)) + ' ' + (p.deliveryTime || ''),
     '收單截止：' + Utilities.formatDate(parseTaipeiDateTime_(p.deadline), 'Asia/Taipei', 'M/d HH:mm'),
@@ -348,7 +354,7 @@ function sendOrganizerLinks_(id, token, p) {
 
   MailApp.sendEmail({
     to: p.organizerEmail,
-    subject: '【嗷嗷團購】' + p.company + ' 的管理連結（' + formatDate_(parseTaipeiDateTime_(p.deliveryDate)) + '）',
+    subject: '【嗷嗷團購】' + (p.company || p.organizer) + ' 的管理連結（' + formatDate_(parseTaipeiDateTime_(p.deliveryDate)) + '）',
     body: lines.join('\n')
   });
   return true;
@@ -489,7 +495,7 @@ function finalizeSession_(p) {
   if (recipients.length) {
     MailApp.sendEmail({
       to: recipients.join(','),
-      subject: '【團購訂單】' + session.company + '｜' + formatDate_(session.deliveryDate) + '｜' + session.fulfillment,
+      subject: '【團購訂單】' + (session.company || session.organizer) + '｜' + formatDate_(session.deliveryDate) + '｜' + session.fulfillment,
       body: emailBody
     });
   }
@@ -520,8 +526,8 @@ function buildOrderEmail_(session, orders, settings) {
   lines.push('期望送達時間：' + session.deliveryTime);
   if (session.fulfillment === '外送') lines.push('外送地址：' + session.address);
   lines.push('是否需要餐具：' + session.needUtensils);
-  lines.push('公司名稱：' + session.company);
-  lines.push('統一編號：' + session.taxId);
+  lines.push('公司名稱：' + (session.company || '（未填）'));
+  lines.push('統一編號：' + (session.taxId || '（未填）'));
   lines.push('聯絡窗口：' + session.contactName + '（' + session.contactPhone + '）');
   lines.push('方便接聽電話時間：' + session.contactAvailableTime);
   lines.push('若遇颱風假是否取消：' + session.typhoonCancel);

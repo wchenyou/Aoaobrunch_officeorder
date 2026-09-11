@@ -53,7 +53,8 @@ page.innerHTML =
       '<div class="card-head"><span class="dot"></span><h2>什麼時候要</h2></div>' +
       '<div class="grid-2">' +
         '<div class="field"><label for="deliveryDate">預訂日期 <span class="req">*</span></label>' +
-          '<input type="date" id="deliveryDate" required></div>' +
+          '<input type="date" id="deliveryDate" required>' +
+          '<div class="tiny" style="margin-top:5px;">最早只能選明天，當天無法下單。</div></div>' +
         '<div class="field"><label for="deliveryTime">期望送達時間 <span class="req">*</span></label>' +
           '<input type="text" id="deliveryTime" placeholder="例如 11:30" required></div>' +
       '</div>' +
@@ -77,17 +78,16 @@ page.innerHTML =
         '<div class="seg">' +
           '<input type="radio" name="typhoonCancel" id="t1" value="是" checked><label for="t1">取消</label>' +
           '<input type="radio" name="typhoonCancel" id="t2" value="否"><label for="t2">照送</label>' +
-          '<input type="radio" name="typhoonCancel" id="t3" value="其他"><label for="t3">其他</label>' +
         '</div></div>' +
     '</div>' +
 
     '<div class="card" id="cardBill">' +
       '<div class="card-head"><span class="dot"></span><h2>發票與聯絡窗口</h2></div>' +
       '<div class="grid-2">' +
-        '<div class="field"><label for="company">公司名稱 <span class="req">*</span></label>' +
-          '<input type="text" id="company" required></div>' +
-        '<div class="field"><label for="taxId">統一編號 <span class="req">*</span></label>' +
-          '<input type="text" id="taxId" placeholder="不需要發票請填「否」" required></div>' +
+        '<div class="field"><label for="company">公司名稱</label>' +
+          '<input type="text" id="company" placeholder="選填"></div>' +
+        '<div class="field"><label for="taxId">統一編號</label>' +
+          '<input type="text" id="taxId" placeholder="選填，需要發票才填"></div>' +
       '</div>' +
       '<div class="grid-2">' +
         '<div class="field"><label for="contactName">聯絡窗口姓名 <span class="req">*</span></label>' +
@@ -133,11 +133,18 @@ function syncAddress() {
 fulfillmentRadios.forEach(function (r) { r.addEventListener('change', syncAddress); });
 syncAddress();
 
-/* 截止時間上限：預訂日期前一天 15:00 */
+/* 預訂日期下限：最早只能選明天 */
 const dateInput = document.getElementById('deliveryDate');
 const deadlineInput = document.getElementById('deadline');
 const deadlineHint = document.getElementById('deadlineHint');
 function pad(n) { return String(n).padStart(2, '0'); }
+(function () {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  dateInput.min = tomorrow.getFullYear() + '-' + pad(tomorrow.getMonth() + 1) + '-' + pad(tomorrow.getDate());
+})();
+
+/* 截止時間上限：預訂日期前一天 15:00 */
 dateInput.addEventListener('change', function () {
   if (!dateInput.value) return;
   const d = new Date(dateInput.value + 'T00:00:00');
