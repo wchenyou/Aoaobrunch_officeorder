@@ -10,14 +10,19 @@
  * 資料表都關了 RLS、不開放任何公開存取，前端一律透過這支函式（用
  * service role）讀寫，跟原本「前端只透過後端 API 講話」的架構一致。
  *
- * 寄信用 Resend；金鑰不是放環境變數，而是放在 settings 資料表的
- * 「寄信API金鑰」欄位——這樣之後要換金鑰、換寄件人不用重新部署程式碼，
- * 直接在 Supabase 後台的 Table Editor 改一格就好，跟以前改 Google
- * 試算表的「設定」分頁是同一種習慣。金鑰欄位是空的的話就跳過寄信，
- * 不會讓整支 API 掛掉。
+ * 寄信改用 Gmail SMTP（不是 Resend——Resend 的共用測試網域只能寄給
+ * 自己，要寄給別人得先買網域驗證，太麻煩）。直接用一個真的 Gmail
+ * 帳號（settings.寄件人Email）+ 應用程式密碼（settings.寄信Gmail應用
+ * 程式密碼）登入 smtp.gmail.com 寄信，效果等同用那個 Gmail 帳號本人
+ * 寄信，收件人沒有限制。帳號、密碼、寄件人名稱都放在 settings 資料
+ * 表，不是環境變數——這樣之後要換寄信帳號不用重新部署程式碼，直接在
+ * Supabase 後台的 Table Editor 改一格就好，跟以前改 Google 試算表的
+ * 「設定」分頁是同一種習慣。密碼欄位是空的的話就跳過寄信，不會讓
+ * 整支 API 掛掉。
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -144,20 +149,38 @@ async function getOrderByCode(sessionId: string, orderCode: string) {
   return rows.filter((o: any) => o.orderCode === orderCode);
 }
 
-/* ============ 寄信（Resend，金鑰放在 settings 表） ============ */
+/* ============ 寄信（Gmail SMTP，帳號密碼放在 settings 表） ============ */
 
 async function sendEmail(settings: Record<string, string>, to: string, subject: string, body: string) {
-  const apiKey = settings['寄信API金鑰'];
-  if (!apiKey) { console.log('[email 略過：尚未在設定填「寄信API金鑰」]', to, subject); return false; }
-  const fromEmail = settings['寄件人Email'] || 'onboarding@resend.dev';
+  const gmailUser = (settings['寄件人Email'] || '').trim();
+  const gmailPass = (settings['寄信Gmail應用程式密碼'] || '').trim();
+  if (!gmailUser || !gmailPass) {
+    console.log('[email 略過：尚未在設定填「寄件人Email」或「寄信Gmail應用程式密碼」]', to, subject);
+    return false;
+  }
   const fromName = (settings['寄件人名稱'] || '').trim();
-  const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to: to.split(',').map((s) => s.trim()).filter(Boolean), subject, text: body }),
+  const from = fromName ? `${fromName} <${gmailUser}>` : gmailUser;
+
+  const client = new SMTPClient({
+    connection: {
+      hostname: 'smtp.gmail.com',
+      port: 465,
+      tls: true,
+      auth: { username: gmailUser, password: gmailPass },
+    },
   });
-  if (!res.ok) throw new Error('寄信失敗：' + (await res.text()));
+  try {
+    await client.send({
+      from,
+      to: to.split(',').map((s) => s.trim()).filter(Boolean),
+      subject,
+      content: body,
+    });
+  } catch (err) {
+    throw new Error('寄信失敗：' + (err instanceof Error ? err.message : String(err)));
+  } finally {
+    await client.close();
+  }
   return true;
 }
 
@@ -392,7 +415,7 @@ async function finalizeSession(p: any) {
     ok: true,
     message: !recipients.length
       ? '已送單，但沒有設定收件信箱，請到「設定」補上店家收單Email'
-      : (mailed ? '已送單並寄出通知信' : '已送單，但目前尚未設定寄信服務，請到「設定」補上「寄信API金鑰」'),
+      : (mailed ? '已送單並寄出通知信' : '已送單，但目前尚未設定寄信服務，請到「設定」補上「寄信Gmail應用程式密碼」'),
     recipients,
   };
 }
