@@ -859,6 +859,18 @@ body.lightbox-open { overflow: hidden; }
 /* 沒有低消門檻（自己去取、或沒設金額）時這塊是空的，直接不佔位子，
    跟它並排的分享連結卡片才能自動撐滿整排。 */
 #minOrderCard:empty { display: none; }
+/* #minOrderCard 是外層包一層的 div，.top-row 的 stretch 只會撐高這層
+   包裝，裡面真正的 .card 不會跟著長高，要自己再撐一次才會跟右邊的卡片
+   等高，不然裡面的卡片還是比較矮、下面留一截空的包裝殼。 */
+#minOrderCard { display: flex; }
+#minOrderCard > .card { flex: 1; margin-bottom: 0; }
+
+/* 主揪的姓名/狀態放左邊，這團的預訂日期放右邊。手機寬度不夠時自然換行，
+   日期那塊還是靠右對齊。 */
+.admin-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.admin-head h1 { margin-bottom: 4px; }
+.admin-head-date { text-align: right; }
+.admin-head-date-val { font-family: var(--font-num); font-weight: 800; font-size: 17px; color: var(--ink); white-space: nowrap; }
 
 /* 購物車 / 送單列的小計 */
 .cart-total {
@@ -935,7 +947,9 @@ body.lightbox-open { overflow: hidden; }
   /* 「外送低消」跟「分享給同事的點餐連結」寬度夠了就左右並排。
      外送低消卡片是有條件才出現的，用 flex 而不是 grid：空的時候
      另一塊自然撐滿整排，不會留白。 */
-  .top-row { display: flex; align-items: flex-start; gap: 16px; }
+  /* align-items 用 stretch（預設值），讓兩張卡片一樣高——外送低消卡片
+     內容通常比較少，不然會比旁邊分享連結的卡片矮一截，看起來對不齊。 */
+  .top-row { display: flex; align-items: stretch; gap: 16px; }
   .top-row > * { flex: 1 1 0; min-width: 0; margin-bottom: 14px; }
 }
 
@@ -1008,7 +1022,11 @@ body.lightbox-open { overflow: hidden; }
 /* 建立揪團頁：表單在桌機不要拉得太寬，結果卡片再收窄一點 */
 @media (min-width: 900px) {
   .form-grid { max-width: 900px; margin: 0 auto; }
-  #rules, #page > h1, #page > p.muted { max-width: 900px; margin-left: auto; margin-right: auto; }
+  /* 只有首頁的大標題／說明文字要在桌機置中收窄，用 .page-hero 特別標記
+     這兩個元素——原本用 #page > h1 這種通用選取器，結果連 admin.html／
+     order.html／vendor.html 的標題也一起被置中歪掉了，同一份 style.css
+     是四個頁面共用的，選取器不能只想著自己那一頁。 */
+  #rules, .page-hero { max-width: 900px; margin-left: auto; margin-right: auto; }
   .narrow { max-width: 620px; margin: 0 auto; }
 }
 

@@ -56,8 +56,16 @@ function buildShell() {
 
   page.innerHTML =
     '<a class="link-inline" href="index.html" style="display:inline-block;margin-bottom:10px;">← 回糾團首頁</a>' +
-    '<h1>' + escapeHtml(SESSION.organizer) + ' 的揪團 🐾</h1>' +
-    '<p class="muted">編號 ' + escapeHtml(SESSION.id) + '　<span id="statusBadge"></span></p>' +
+    '<div class="admin-head">' +
+      '<div>' +
+        '<h1>' + escapeHtml(SESSION.organizer) + ' 的揪團 🐾</h1>' +
+        '<p class="muted"><span id="statusBadge"></span></p>' +
+      '</div>' +
+      '<div class="admin-head-date">' +
+        '<div class="tiny">預訂日期</div>' +
+        '<div class="admin-head-date-val">' + fmtDate(SESSION.deliveryDate) + '　' + escapeHtml(SESSION.deliveryTime || '') + '</div>' +
+      '</div>' +
+    '</div>' +
 
     '<div class="stat-grid">' +
       '<div class="stat"><div class="stat-num" id="stPeople">0</div><div class="stat-label">人</div></div>' +
@@ -72,10 +80,10 @@ function buildShell() {
     '<div class="top-row">' +
       '<div id="minOrderCard"></div>' +
       '<div class="card">' +
-        '<div class="card-head"><span class="dot"></span><h2>分享給同事的點餐連結</h2></div>' +
+        '<div class="card-head"><span class="dot"></span><h2>分享給同事的點餐連結</h2><span class="spacer"></span>' +
+          '<a class="btn btn-ghost btn-sm" style="text-decoration:none;" href="' + orderUrl + '">🐾 主揪自己的點餐連結</a></div>' +
         linkBox(orderUrl, 'shareUrl') +
         '<div class="tiny" id="deadlineLine" style="margin-top:9px;"></div>' +
-        '<a class="btn btn-ghost btn-block btn-sm" style="text-decoration:none;text-align:center;display:block;margin-top:10px;" href="' + orderUrl + '">🐾 主揪自己也要點餐，用這顆</a>' +
       '</div>' +
     '</div>' +
 
