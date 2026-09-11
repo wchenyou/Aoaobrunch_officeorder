@@ -6,6 +6,8 @@
 - **後端**（資料與通知）→ Google Apps Script + Google 試算表
 - **通知方式** → 主揪按下「送單」時，寄一封彙整好的訂單信給店家
 
+> 這份是操作說明。菜單價格、店家規則、資料模型、當初的取捨與尚未確認的事項寫在 **[SPEC.md](SPEC.md)**；要改程式碼先看 **[CLAUDE.md](CLAUDE.md)**。
+
 ---
 
 ## 怎麼運作
@@ -148,6 +150,8 @@
 ## 檔案結構
 
 ```
+README.md          操作與部署說明
+SPEC.md            規格與決策紀錄（菜單、店家規則、資料模型、待確認事項）
 CLAUDE.md          給 Claude Code 的專案脈絡
 apps-script/
   Code.gs          後端：JSON API、試算表讀寫、送單信、初始化
