@@ -450,14 +450,16 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 }
 .fab-stack .btn {
   position: relative;
-  /* 這兩顆是浮在整頁內容「上面」的，用預設的 .btn-ghost 背景色跟底下的頁面色
-     太接近（尤其深色模式），看起來像貼在背景上而不是浮起來。這裡故意用實色
-     卡片＋暖色描邊＋橘色光暈，讓它們明顯跟底下的內容分開一層。 */
-  background: var(--surface-alt);
-  border-color: var(--peach);
-  box-shadow: var(--shadow-lg), 0 0 0 1px var(--peach);
+  /* 這兩顆是浮在整頁內容「上面」的。原本用跟背景同色系的卡片＋描邊，
+     深色模式下還是不夠顯眼、存在感太低。改成跟主要按鈕同一套橘色實心
+     風格（不用會隨深色模式一起變暗的色票，直接固定亮色），故意做得
+     突兀一點，才會讓人一眼看到這裡有東西可以點。 */
+  background: var(--orange);
+  color: #fff;
+  border-color: var(--orange-deep);
+  box-shadow: 0 6px 20px -4px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.3);
 }
-.fab-stack .btn:hover:not(:disabled) { background: var(--surface-alt); }
+.fab-stack .btn:hover:not(:disabled) { background: var(--orange-deep); border-color: var(--orange-deep); color: #fff; }
 .fab-badge {
   position: absolute;
   top: -7px;

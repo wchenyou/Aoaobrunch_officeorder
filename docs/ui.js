@@ -108,7 +108,7 @@ document.addEventListener('click', function (e) {
 const MENU_PHOTO_URL = 'images/menu/full-menu.jpg';
 
 function menuButton() {
-  return '<button type="button" class="btn btn-ghost btn-sm" data-view-menu>📋 查看菜單</button>';
+  return '<button type="button" class="btn btn-ghost btn-sm" data-view-menu>📋 完整菜單</button>';
 }
 
 document.addEventListener('click', function (e) {
