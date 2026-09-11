@@ -81,6 +81,10 @@ body {
   font-size: 15px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
+  /* 讓瀏覽器原生的表單控制項（主要是日期欄位的小日曆圖示）跟著同一個
+     深色/淺色模式判斷來畫，不然深色模式下那顆日曆圖示預設是深灰色，
+     跟深色背景幾乎融在一起、幾乎看不到有東西可以點。 */
+  color-scheme: light dark;
 }
 
 /* ---------- 頁首 ---------- */
@@ -172,6 +176,12 @@ p:last-child { margin-bottom: 0; }
 }
 
 .card-head .spacer { margin-left: auto; }
+
+/* ---------- 點餐頁最上面的行銷文案卡片 ---------- */
+.promo-card p { margin: 0 0 10px; line-height: 1.7; }
+.promo-card p:last-of-type { margin-bottom: 0; }
+.promo-lead { font-weight: 800; font-size: 16.5px; }
+.promo-rules div { padding: 3px 0; }
 
 /* ---------- 店家後台：分頁列、區塊標題（不是卡片，跟內容的卡片區分開來） ---------- */
 
