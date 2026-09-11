@@ -55,6 +55,7 @@ function buildShell() {
   const orderUrl = location.origin + location.pathname.replace(/admin\.html$/, 'order.html') + '?session=' + SESSION_ID;
 
   page.innerHTML =
+    '<a class="link-inline" href="index.html" style="display:inline-block;margin-bottom:10px;">← 回糾團首頁</a>' +
     '<h1>' + escapeHtml(SESSION.organizer) + ' 的揪團 🐾</h1>' +
     '<p class="muted">編號 ' + escapeHtml(SESSION.id) + '　<span id="statusBadge"></span></p>' +
 
@@ -78,12 +79,9 @@ function buildShell() {
       '<main class="col-main">' +
         '<div class="card">' +
           '<div class="card-head"><span class="dot"></span><h2>目前收到的訂單</h2><span class="spacer"></span>' +
-            '<button class="btn btn-ghost btn-sm" id="refreshBtn">重新整理</button></div>' +
-          '<div id="orderList"></div>' +
-          '<div class="refresh-row">' +
             '<span class="tiny" id="updatedAt">更新中…</span>' +
-            '<button class="btn btn-ghost btn-sm" id="refreshBtn2">立即更新</button>' +
-          '</div>' +
+            '<button class="btn btn-ghost btn-sm" id="refreshBtn">立即更新</button></div>' +
+          '<div id="orderList"></div>' +
         '</div>' +
       '</main>' +
       '<aside class="col-side">' +
@@ -105,18 +103,17 @@ function buildShell() {
       '<button class="btn btn-primary" data-finalize>送單</button>' +
     '</div>';
 
-  [['refreshBtn', '重新整理'], ['refreshBtn2', '立即更新']].forEach(function (pair) {
-    const btn = document.getElementById(pair[0]);
-    if (!btn) return;
-    btn.addEventListener('click', function () {
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spin"></span>';
+  const refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', function () {
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<span class="spin"></span>';
       load().then(function () {
-        btn.disabled = false;
-        btn.textContent = pair[1];
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = '立即更新';
       });
     });
-  });
+  }
 
   /* 切回這個分頁時順手更新一次，不用等下一輪 20 秒 */
   document.addEventListener('visibilitychange', function () {
