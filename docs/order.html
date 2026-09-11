@@ -210,7 +210,7 @@ function buildMenu(cats) {
       html +=
         '<div class="item" data-i="' + idx + '">' +
           '<div class="item-row">' +
-            (m.imageUrl ? '<img class="item-thumb" src="' + escapeHtml(m.imageUrl) + '" alt="" loading="lazy">' : '') +
+            (m.imageUrl ? '<img class="item-thumb" src="' + escapeHtml(m.imageUrl) + '" alt="' + escapeHtml(m.name) + '" loading="lazy" data-zoomable>' : '') +
             '<div class="item-body">' +
               '<div class="item-name">' + escapeHtml(m.name) + '</div>' +
               tagsHtml(m) +
@@ -224,7 +224,8 @@ function buildMenu(cats) {
   area.innerHTML = html;
 
   area.querySelectorAll('.item-row').forEach(function (rowEl) {
-    rowEl.addEventListener('click', function () {
+    rowEl.addEventListener('click', function (e) {
+      if (e.target.closest('[data-zoomable]')) return; // 點縮圖是要放大看，不是要展開規格
       const item = rowEl.parentElement;
       const wasOpen = item.classList.contains('open');
       area.querySelectorAll('.item.open').forEach(function (o) { o.classList.remove('open'); });

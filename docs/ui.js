@@ -101,33 +101,54 @@ document.addEventListener('click', function (e) {
 });
 
 /* ==========================================================================
-   菜單相片預覽——發起團購頁、點餐頁共用
-   只有拍過照的品項（目前是 4 款主餐）才會出現在這個格狀預覽，
-   飲料沒有照片，維持原本的文字清單就好，不用硬塞進來湊版面。
-   預設收合，不會把「建立揪團」「選餐送出」這些主要動作往下擠。
+   完整菜單——發起團購頁、點餐頁共用
+   直接整份攤開來，不用先點一下才看得到。
+   有拍照的品項（目前是 4 款主餐）用照片格子呈現，照片可以點下去放大看；
+   沒拍照的（飲料）用精簡文字列表，不然 20 幾個空格子只會很醜。
    ========================================================================== */
 
 function menuPreviewSection(menu) {
-  const withPhoto = (menu || []).filter(function (m) { return m.imageUrl; });
-  if (!withPhoto.length) return '';
+  const list = menu || [];
+  if (!list.length) return '';
+  const cats = [];
+  const byCat = {};
+  list.forEach(function (m) {
+    if (!byCat[m.category]) { byCat[m.category] = []; cats.push(m.category); }
+    byCat[m.category].push(m);
+  });
+
   return (
     '<div class="menu-preview">' +
-      '<button type="button" class="menu-preview-toggle" data-menu-preview-toggle aria-expanded="false">' +
-        '<span>🍽️ 先看看菜單長什麼樣</span><span class="chev">▾</span>' +
-      '</button>' +
-      '<div class="mp-grid" hidden>' +
-        withPhoto.map(function (m) {
-          return '<div class="mp-card">' +
-            '<img src="' + escapeHtml(m.imageUrl) + '" alt="' + escapeHtml(m.name) + '" loading="lazy">' +
-            '<div class="mp-card-body">' +
-              '<div class="mp-name">' + escapeHtml(m.name) + '</div>' +
-              '<div class="mp-price">' + menuPriceLabel(m) + '</div>' +
-            '</div>' +
-          '</div>';
-        }).join('') +
-      '</div>' +
+      '<div class="menu-preview-head">🍽️ 菜單先看一輪</div>' +
+      cats.map(function (cat) {
+        const items = byCat[cat];
+        const withPhoto = items.filter(function (m) { return m.imageUrl; });
+        const noPhoto = items.filter(function (m) { return !m.imageUrl; });
+        return (
+          '<div class="mp-cat">' +
+            '<div class="mp-cat-name">' + escapeHtml(cat) + '</div>' +
+            (withPhoto.length ? '<div class="mp-grid">' + withPhoto.map(mpCard).join('') + '</div>' : '') +
+            (noPhoto.length ? '<div class="mp-list">' + noPhoto.map(mpRow).join('') + '</div>' : '') +
+          '</div>'
+        );
+      }).join('') +
     '</div>'
   );
+}
+
+function mpCard(m) {
+  return '<div class="mp-card">' +
+    '<img src="' + escapeHtml(m.imageUrl) + '" alt="' + escapeHtml(m.name) + '" loading="lazy" data-zoomable>' +
+    '<div class="mp-card-body">' +
+      '<div class="mp-name">' + escapeHtml(m.name) + '</div>' +
+      '<div class="mp-price">' + menuPriceLabel(m) + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function mpRow(m) {
+  return '<div class="mp-list-row"><span class="mp-list-name">' + escapeHtml(m.name) + '</span>' +
+    '<span class="mp-list-price">' + menuPriceLabel(m) + '</span></div>';
 }
 
 function menuPriceLabel(m) {
@@ -135,14 +156,41 @@ function menuPriceLabel(m) {
   return '$' + m.priceM;
 }
 
+/* ==========================================================================
+   圖片點擊放大——菜單照片、點餐清單縮圖共用
+   任何帶 data-zoomable 的 <img> 點下去就蓋一層大圖，點旁邊空白或按 Esc 關掉。
+   ========================================================================== */
+
 document.addEventListener('click', function (e) {
-  const btn = e.target.closest('[data-menu-preview-toggle]');
-  if (!btn) return;
-  const grid = btn.parentElement.querySelector('.mp-grid');
-  const wasOpen = btn.getAttribute('aria-expanded') === 'true';
-  btn.setAttribute('aria-expanded', wasOpen ? 'false' : 'true');
-  if (grid) grid.hidden = wasOpen;
+  if (e.target.closest('[data-lightbox-close]') || e.target.matches('[data-lightbox]')) {
+    closeLightbox();
+    return;
+  }
+  const img = e.target.closest('[data-zoomable]');
+  if (img) openLightbox(img.getAttribute('src'), img.getAttribute('alt') || '');
 });
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeLightbox();
+});
+
+function openLightbox(src, alt) {
+  closeLightbox();
+  const box = document.createElement('div');
+  box.className = 'lightbox';
+  box.setAttribute('data-lightbox', '');
+  box.innerHTML =
+    '<img src="' + escapeHtml(src) + '" alt="' + escapeHtml(alt) + '">' +
+    '<button type="button" class="lightbox-close" data-lightbox-close aria-label="關閉">✕</button>';
+  document.body.appendChild(box);
+  document.body.classList.add('lightbox-open');
+}
+
+function closeLightbox() {
+  const box = document.querySelector('[data-lightbox]');
+  if (box) box.remove();
+  document.body.classList.remove('lightbox-open');
+}
 
 /** 整頁的狀態訊息（找不到揪團、載入失敗等） */
 function centerMsg(title, desc) {

@@ -214,7 +214,6 @@ document.getElementById('form').addEventListener('submit', function (e) {
         '<div class="card-head"><span class="dot"></span><h2>① 分享給同事的點餐連結</h2></div>' +
         linkBox(orderUrl, 'orderUrl') +
         '<div class="tiny" style="margin-top:8px;">同事點開就能看菜單、選餐、送出，截止前也能自己改。</div>' +
-        '<a class="btn btn-ghost btn-block btn-sm" style="text-decoration:none;text-align:center;display:block;margin-top:10px;" href="' + orderUrl + '">🐾 主揪自己也要點餐，用這顆</a>' +
       '</div>' +
       '<div class="card">' +
         '<div class="card-head"><span class="dot"></span><h2>② 你的管理連結（請留好）</h2></div>' +
@@ -225,7 +224,13 @@ document.getElementById('form').addEventListener('submit', function (e) {
             escapeHtml(val('organizerEmail')) + '</strong>，關掉這頁也沒關係。</div></div>'
           : '<div class="notice notice-warn" style="margin:12px 0 0;"><span class="ico">⚠️</span><div>這次沒能寄出通知信，請自己先把上面的管理連結存起來。</div></div>') +
       '</div>' +
-      '<a class="btn btn-primary btn-block" style="text-decoration:none;text-align:center;display:block;" href="' + adminUrl + '">前往管理頁面</a>';
+      '<a class="btn btn-primary btn-block" style="text-decoration:none;text-align:center;display:block;" href="' + adminUrl + '">前往管理頁面</a>' +
+      '<div class="card" style="margin-top:16px;">' +
+        '<div class="card-head"><span class="dot"></span><h2>🐾 主揪也直接在這裡點餐</h2></div>' +
+        '<div class="tiny" style="margin-bottom:10px;">不用跳頁，下面就是同事看到的同一份點餐頁，直接選就好。' +
+          '<a class="link-inline" href="' + orderUrl + '" target="_blank" rel="noopener" style="margin-left:6px;">在新分頁開啟</a></div>' +
+        '<div class="inline-order-wrap"><iframe class="inline-order-frame" src="' + orderUrl + '" title="主揪點餐"></iframe></div>' +
+      '</div>';
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }).catch(function (err) {
