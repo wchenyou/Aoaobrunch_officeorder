@@ -30,6 +30,7 @@ const MENU_SEED = [
 
 const SETTINGS = {
   '店家收單Email': 'shop@example.com',
+  '副本收單Email': 'sunny30248@gmail.com',
   '颱風假政策文字': '如遇颱風假停班停課，本次團購自動取消，不另行通知。',
   '店家外送電話': '04-2452-3022',
   '低消金額': 1000,
@@ -98,7 +99,7 @@ function createSession(p) {
   return { ok: true, sessionId: id, adminToken: token, mailed: mailed };
 }
 
-function submitOrder(p, forced) {
+function submitOrder(p, forced, actionLabel) {
   const s = sessions[p.sessionId];
   if (!s) throw new Error('找不到這個揪團，連結可能有誤');
   if (s.status !== '收單中') throw new Error('這個揪團已經截止收單了');
@@ -107,6 +108,7 @@ function submitOrder(p, forced) {
   if (!p.items || !p.items.length) throw new Error('購物車是空的');
   const map = {}; menuData().forEach(m => map[m.code] = m);
   const code = forced || ('OC' + (orderRows.length + 1));
+  const notifyEmail = String(p.notifyEmail || '').trim();
   let n = 0;
   p.items.forEach(item => {
     const m = map[item.code];
@@ -120,11 +122,15 @@ function submitOrder(p, forced) {
     orderRows.push({
       timestamp: new Date(), sessionId: s.id, orderCode: code, name: p.name,
       itemCode: m.code, itemName: m.name, size, opt1: item.opt1 || '', opt2: item.opt2 || '',
-      qty, note: item.note || '', price, subtotal: price * qty, status: '正常'
+      qty, note: item.note || '', price, subtotal: price * qty, status: '正常', notifyEmail
     });
     n++;
   });
   if (!n) throw new Error('沒有有效的品項，請確認數量');
+  if (notifyEmail && notifyEmail.indexOf('@') > -1) {
+    sentMails.push({ to: notifyEmail, kind: '訂單' + (actionLabel || '送出'), sentAt: new Date(), orderCode: code });
+    console.log('[mock mail] 訂單' + (actionLabel || '送出') + '確認 →', notifyEmail);
+  }
   return { ok: true, orderCode: code };
 }
 
@@ -143,20 +149,26 @@ function handle(action, p) {
       return { ok: true, session: s, orders: orderRows.filter(o => o.sessionId === p.session && o.status !== '已取消'), settings: SETTINGS };
     }
     case 'createSession': return createSession(p);
-    case 'submitOrder': return submitOrder(p);
+    case 'submitOrder': return submitOrder(p, null, '送出');
     case 'updateOrder': {
       const s = sessions[p.sessionId];
       if (!s) throw new Error('找不到這個揪團');
       for (let i = orderRows.length - 1; i >= 0; i--) {
         if (orderRows[i].sessionId === s.id && orderRows[i].orderCode === p.orderCode) orderRows.splice(i, 1);
       }
-      const r = submitOrder(p, p.orderCode);
+      const r = submitOrder(p, p.orderCode, '更新');
       return { ok: true, orderCode: r.orderCode, message: '訂單已更新' };
     }
     case 'cancelOrder': {
+      const existing = orderRows.filter(o => o.orderCode === p.orderCode && o.status !== '已取消');
       let found = false;
       orderRows.forEach(o => { if (o.orderCode === p.orderCode) { o.status = '已取消'; found = true; } });
       if (!found) throw new Error('找不到這筆訂單');
+      const notifyEmail = existing.length ? existing[0].notifyEmail : '';
+      if (notifyEmail && notifyEmail.indexOf('@') > -1) {
+        sentMails.push({ to: notifyEmail, kind: '訂單取消', sentAt: new Date(), orderCode: p.orderCode });
+        console.log('[mock mail] 訂單取消確認 →', notifyEmail);
+      }
       return { ok: true, message: '訂單已取消' };
     }
     case 'finalizeSession': {

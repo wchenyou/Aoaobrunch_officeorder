@@ -99,8 +99,11 @@ function render(existing) {
           '<div class="card-head"><span class="dot"></span><h2>留個名字讓主揪對得到</h2></div>' +
           '<div class="field"><label for="name">姓名或分機 <span class="req">*</span></label>' +
             '<input type="text" id="name" placeholder="例如 Aaron（3樓）"></div>' +
-          '<div class="field" style="margin-bottom:0;"><label for="globalNote">整筆訂單的備註</label>' +
+          '<div class="field"><label for="globalNote">整筆訂單的備註</label>' +
             '<textarea id="globalNote" placeholder="選填，例如不要辣、對某食材過敏"></textarea></div>' +
+          '<div class="field" style="margin-bottom:0;"><label for="notifyEmail">寄一份明細到信箱</label>' +
+            '<input type="email" id="notifyEmail" placeholder="選填，之後改單或取消也會補寄一份">' +
+            '<div class="tiny" style="margin-top:5px;">信裡會附上寄送時間，如果收到好幾封，時間最新的才是目前正確的版本。</div></div>' +
         '</div>' +
         '<button class="btn btn-primary btn-block side-submit" data-submit>送出訂單</button>' +
         '<div id="msgArea"></div>' +
@@ -125,6 +128,7 @@ function render(existing) {
     /* 已經送出過：以伺服器上的內容為準 */
     document.getElementById('name').value = existing[0].name;
     document.getElementById('globalNote').value = existing[0].note || '';
+    document.getElementById('notifyEmail').value = existing[0].notifyEmail || '';
     cart = existing.map(function (o) {
       return { code: o.itemCode, name: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: Number(o.qty), price: Number(o.price) };
     });
@@ -149,6 +153,7 @@ function render(existing) {
     if (DRAFT) {
       if (DRAFT.name) document.getElementById('name').value = DRAFT.name;
       if (DRAFT.note) document.getElementById('globalNote').value = DRAFT.note;
+      if (DRAFT.notifyEmail) document.getElementById('notifyEmail').value = DRAFT.notifyEmail;
       if (DRAFT.items && DRAFT.items.length) {
         cart = DRAFT.items;
         document.getElementById('cartHint').textContent = '上次選到一半的';
@@ -158,8 +163,8 @@ function render(existing) {
     }
   }
 
-  /* 姓名和備註改動時也一起存草稿 */
-  ['name', 'globalNote'].forEach(function (id) {
+  /* 姓名、備註、通知信箱改動時也一起存草稿 */
+  ['name', 'globalNote', 'notifyEmail'].forEach(function (id) {
     document.getElementById(id).addEventListener('input', persistDraft);
   });
 
@@ -358,7 +363,7 @@ function renderCart() {
   document.getElementById('barCount').textContent = count ? ('共 ' + count + ' 份') : '還沒選東西';
 }
 
-/** 把目前的購物車、姓名、備註存回這台裝置 */
+/** 把目前的購物車、姓名、備註、通知信箱存回這台裝置 */
 function persistDraft() {
   const nameEl = document.getElementById('name');
   if (!nameEl) return;
@@ -366,6 +371,7 @@ function persistDraft() {
     items: cart,
     name: nameEl.value,
     note: document.getElementById('globalNote').value,
+    notifyEmail: document.getElementById('notifyEmail').value,
     orderCode: EDIT_CODE || ''
   });
 }
@@ -386,13 +392,15 @@ function submit() {
   }
 
   const globalNote = document.getElementById('globalNote').value.trim();
+  const notifyEmail = document.getElementById('notifyEmail').value.trim();
   const items = cart.map(function (l) { return Object.assign({}, l, { note: globalNote }); });
 
   setSubmit('<span class="spin"></span> 送出中…', true);
   msgArea.innerHTML = '';
 
   apiPost(EDIT_CODE ? 'updateOrder' : 'submitOrder', {
-    sessionId: SESSION_ID, name: name, items: items, orderCode: EDIT_CODE
+    sessionId: SESSION_ID, name: name, items: items, orderCode: EDIT_CODE,
+    notifyEmail: notifyEmail, baseUrl: location.href.replace(/[^/]*(\?.*)?$/, '')
   }).then(function (res) {
     EDIT_CODE = res.orderCode;
     persistDraft();
@@ -404,6 +412,10 @@ function submit() {
         '<div class="card-head"><span class="dot" style="background:var(--leaf);"></span><h2>訂單送出了 ✅</h2></div>' +
         '<p class="muted">截止前想改或想取消，回到這個專屬連結就可以：</p>' +
         linkBox(editUrl, 'editUrl') +
+        (notifyEmail
+          ? '<div class="notice notice-good" style="margin-top:10px;"><span class="ico">📧</span><div>已經寄一份明細到 <strong>' +
+            escapeHtml(notifyEmail) + '</strong>，之後改單或取消也會補寄一份，信裡的寄送時間就是版本依據。</div></div>'
+          : '') +
         '<button class="btn btn-danger btn-block btn-sm" style="margin-top:12px;" id="cancelBtn">取消這筆訂單</button>' +
       '</div>';
     setSubmit('更新訂單', false);
@@ -420,10 +432,21 @@ function cancelOrder() {
   if (!confirm('確定要取消這筆訂單嗎？')) return;
   const btn = document.getElementById('cancelBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 取消中…'; }
+  const notifyEmail = document.getElementById('notifyEmail').value.trim();
   apiPost('cancelOrder', { sessionId: SESSION_ID, orderCode: EDIT_CODE }).then(function () {
     clearCartDraft(SESSION_ID);
-    page.innerHTML = centerMsg('訂單已取消', '如果改變主意，重新打開主揪給的點餐連結再點一次就好。');
-    document.querySelectorAll('.cartbar').forEach(function (b) { b.remove(); });
+    /* 取消後留在點餐頁，只是購物車清空——不要整頁跳走，同事想重點的話直接選就好。 */
+    EDIT_CODE = '';
+    cart = [];
+    renderCart();
+    setSubmit('送出訂單', false);
+    const cartHint = document.getElementById('cartHint');
+    if (cartHint) cartHint.textContent = '';
+    const topNotice = document.getElementById('topNotice');
+    if (topNotice) topNotice.innerHTML = '';
+    document.getElementById('msgArea').innerHTML = notice('good', '✅', '訂單已取消，購物車也清空了。' +
+      (notifyEmail ? '取消確認信也補寄到 ' + notifyEmail + ' 了。' : '') + '想重新點餐的話，直接選就可以。');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }).catch(function (err) {
     alert(err.message || String(err));
     if (btn) { btn.disabled = false; btn.textContent = '取消這筆訂單'; }

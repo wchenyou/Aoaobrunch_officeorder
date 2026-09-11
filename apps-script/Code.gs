@@ -27,7 +27,7 @@ const SHEETS = {
 };
 
 const MENU_HEADERS = ['品項代碼', '品項名稱', '分類', '單價M', '單價L', '規格1名稱', '規格1選項', '規格1必選', '規格2名稱', '規格2選項', '規格2必選', '供應中', '備註'];
-const ORDER_HEADERS = ['時間戳記', '揪團編號', '訂單編號', '訂購人', '品項代碼', '品項名稱', '杯型', '規格1選擇', '規格2選擇', '數量', '備註', '單價', '小計', '狀態'];
+const ORDER_HEADERS = ['時間戳記', '揪團編號', '訂單編號', '訂購人', '品項代碼', '品項名稱', '杯型', '規格1選擇', '規格2選擇', '數量', '備註', '單價', '小計', '狀態', '通知Email'];
 const SESSION_HEADERS = ['揪團編號', '主揪', '主揪Email', '建立時間', '收單截止時間', '取餐方式', '預訂日期', '期望送達時間', '外送地址', '是否需要餐具', '公司名稱', '統一編號', '聯絡窗口姓名', '聯絡窗口電話', '方便接聽電話時間', '颱風假是否取消', '備註', '狀態', '管理權杖'];
 
 const MENU_SEED = [
@@ -60,6 +60,7 @@ const MENU_SEED = [
 
 const SETTINGS_SEED = [
   ['店家收單Email', '請填入店家的 email 帳號'],
+  ['副本收單Email', 'sunny30248@gmail.com'],
   ['颱風假政策文字', '如遇颱風假，依店家規定為：＿＿＿（請填寫實際內容，會顯示在點餐頁面上）'],
   ['店家外送電話', '04-2452-3022'],
   ['店家地址', '台中市西屯區河南路二段486號（嗷嗷早午餐）'],
@@ -109,6 +110,14 @@ function getOrCreateSheet_(ss, name, headers) {
   if (sheet.getLastRow() === 0) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
+  } else {
+    /* 既有的表：如果程式後來新增了欄位，把缺的標題補在最後面，
+       既有欄位順序跟資料都不動，舊資料在新欄位就是空白。 */
+    const existingCols = sheet.getLastColumn();
+    if (existingCols < headers.length) {
+      sheet.getRange(1, existingCols + 1, 1, headers.length - existingCols)
+        .setValues([headers.slice(existingCols)]);
+    }
   }
   return sheet;
 }
@@ -256,7 +265,8 @@ function getOrdersForSession_(sessionId) {
     out.push({
       timestamp: r[0], sessionId: r[1], orderCode: r[2], name: r[3],
       itemCode: r[4], itemName: r[5], size: r[6], opt1: r[7], opt2: r[8],
-      qty: r[9], note: r[10], price: r[11], subtotal: r[12], status: r[13]
+      qty: r[9], note: r[10], price: r[11], subtotal: r[12], status: r[13],
+      notifyEmail: r[14] || ''
     });
   }
   return out;
@@ -392,7 +402,7 @@ function parseTaipeiDateTime_(s) {
 
 /* ============ 送出／修改／取消訂單 ============ */
 
-function submitOrder_(p, forcedOrderCode) {
+function submitOrder_(p, forcedOrderCode, actionLabel) {
   const session = findSession_(p.sessionId);
   if (!session) throw new Error('找不到這個揪團，連結可能有誤');
   if (session.status !== '收單中') throw new Error('這個揪團已經截止收單了');
@@ -405,8 +415,10 @@ function submitOrder_(p, forcedOrderCode) {
   menu.forEach(m => { menuMap[m.code] = m; });
 
   const rows = [];
+  const lineObjs = []; // 給確認信用的明細，跟 rows 一一對應
   const orderCode = forcedOrderCode || Utilities.getUuid().replace(/-/g, '').slice(0, 8).toUpperCase();
   const now = new Date();
+  const notifyEmail = String(p.notifyEmail || '').trim();
 
   p.items.forEach(item => {
     const m = menuMap[item.code];
@@ -421,8 +433,12 @@ function submitOrder_(p, forcedOrderCode) {
     price = Number(price) || 0;
     rows.push([
       now, session.id, orderCode, p.name, m.code, m.name, size,
-      item.opt1 || '', item.opt2 || '', qty, item.note || '', price, price * qty, '正常'
+      item.opt1 || '', item.opt2 || '', qty, item.note || '', price, price * qty, '正常', notifyEmail
     ]);
+    lineObjs.push({
+      itemName: m.name, size: size, opt1: item.opt1 || '', opt2: item.opt2 || '',
+      qty: qty, note: item.note || '', subtotal: price * qty
+    });
   });
 
   if (!rows.length) throw new Error('沒有有效的品項，請確認數量');
@@ -434,6 +450,15 @@ function submitOrder_(p, forcedOrderCode) {
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, ORDER_HEADERS.length).setValues(rows);
   } finally {
     lock.releaseLock();
+  }
+
+  // 選填：跟團者留了信箱，就補一份明細給他自己，寄送時間可以當作版本依據。
+  if (notifyEmail && notifyEmail.indexOf('@') > -1) {
+    try {
+      sendOrderConfirmation_(session, p.name, lineObjs, orderCode, notifyEmail, actionLabel || '送出', p);
+    } catch (err) {
+      Logger.log('寄送訂單確認信失敗：' + err.message);
+    }
   }
 
   // 同樣不在這裡組前端網址，回傳 orderCode 讓前端自己組修改連結。
@@ -448,7 +473,7 @@ function updateOrder_(p) {
   if (!p.orderCode) throw new Error('缺少訂單編號');
 
   removeOrderRows_(session.id, p.orderCode, false);
-  const result = submitOrder_(p, p.orderCode);
+  const result = submitOrder_(p, p.orderCode, '更新');
   return { ok: true, orderCode: result.orderCode, message: '訂單已更新' };
 }
 
@@ -457,9 +482,69 @@ function cancelOrder_(p) {
   if (!session) throw new Error('找不到這個揪團');
   if (session.status !== '收單中') throw new Error('已經截止收單，無法取消');
   if (Date.now() >= new Date(session.deadline).getTime()) throw new Error('已經超過收單截止時間了');
+
+  // 取消前先留一份快照：如果訂單有留通知信箱，等等要用裡面的內容跟信箱補寄取消確認信。
+  const existing = getOrderByCode_(session.id, p.orderCode);
   const removed = removeOrderRows_(session.id, p.orderCode, true);
   if (!removed) throw new Error('找不到這筆訂單');
+
+  const notifyEmail = existing.length ? existing[0].notifyEmail : '';
+  if (notifyEmail && notifyEmail.indexOf('@') > -1) {
+    const lineObjs = existing.map(o => ({
+      itemName: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: o.qty, note: o.note, subtotal: o.subtotal
+    }));
+    try {
+      sendOrderConfirmation_(session, existing[0].name, lineObjs, p.orderCode, notifyEmail, '取消', p);
+    } catch (err) {
+      Logger.log('寄送取消確認信失敗：' + err.message);
+    }
+  }
+
   return { ok: true, message: '訂單已取消' };
+}
+
+/**
+ * 選填功能：跟團者送出／更新／取消訂單時，如果留了信箱，就寄一份明細給他自己。
+ * 信裡帶「寄送時間」，改了好幾次的話，時間最新的那一封就是目前正確的版本。
+ */
+function sendOrderConfirmation_(session, name, lineObjs, orderCode, notifyEmail, actionLabel, p) {
+  const sentAt = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy/MM/dd HH:mm:ss');
+  const lines = [];
+  lines.push('這是你在「' + session.organizer + '」揪的團裡，訂單' + actionLabel + '的明細。');
+  lines.push('寄送時間：' + sentAt);
+  lines.push('（如果同一筆訂單收到不只一封，時間最新的這封才是目前正確的版本。）');
+  lines.push('');
+  lines.push('揪團：' + session.organizer + '　預訂日期：' + formatDate_(session.deliveryDate));
+  lines.push('訂購人：' + name);
+  lines.push('');
+  lines.push(actionLabel === '取消' ? '── 取消前的內容（僅供留存） ──' : '── 目前的訂購內容 ──');
+
+  let total = 0;
+  lineObjs.forEach(function (l) {
+    const specs = [l.size, l.opt1, l.opt2].filter(Boolean).join('／');
+    lines.push('・' + l.itemName + (specs ? '（' + specs + '）' : '') + ' x ' + l.qty + '　$' + l.subtotal + (l.note ? '　備註：' + l.note : ''));
+    total += Number(l.subtotal) || 0;
+  });
+  lines.push('');
+  lines.push('小計：$' + total);
+
+  if (actionLabel !== '取消') {
+    const settings = getSettingsMap_();
+    let base = String(settings['前端網址'] || '').trim();
+    if (base.indexOf('http') !== 0) base = String((p && p.baseUrl) || '').trim();
+    if (base.indexOf('http') === 0) {
+      if (base.slice(-1) !== '/') base += '/';
+      lines.push('');
+      lines.push('截止前想改或想取消，用這個連結：');
+      lines.push(base + 'order.html?session=' + encodeURIComponent(session.id) + '&edit=' + encodeURIComponent(orderCode));
+    }
+  }
+
+  MailApp.sendEmail({
+    to: notifyEmail,
+    subject: '【嗷嗷團購】你的訂單' + actionLabel + '確認（' + sentAt + '）',
+    body: lines.join('\n')
+  });
 }
 
 function removeOrderRows_(sessionId, orderCode, markCancelled) {
@@ -500,8 +585,10 @@ function finalizeSession_(p) {
 
   const settings = getSettingsMap_();
   const emailBody = buildOrderEmail_(session, orders, settings);
-  const recipients = [String(settings['店家收單Email'] || '')].filter(v => v && v.indexOf('@') > -1);
+  let recipients = [String(settings['店家收單Email'] || ''), String(settings['副本收單Email'] || '')]
+    .filter(v => v && v.indexOf('@') > -1);
   if (session.organizerEmail && session.organizerEmail.indexOf('@') > -1) recipients.push(session.organizerEmail);
+  recipients = recipients.filter((v, i) => recipients.indexOf(v) === i); // 去重，避免同一信箱收兩封
 
   if (recipients.length) {
     MailApp.sendEmail({
