@@ -669,6 +669,7 @@ body.lightbox-open { overflow: hidden; }
   letter-spacing: .03em;
 }
 .badge.warn { background: var(--berry-soft); color: var(--berry); }
+.badge.done { background: var(--border-soft); color: var(--ink-soft); }
 
 .countdown {
   font-family: var(--font-num);

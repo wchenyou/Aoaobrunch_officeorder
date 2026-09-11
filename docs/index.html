@@ -264,7 +264,8 @@ function renderMyGroups() {
   });
 
   function draw(list) {
-    const items = list.slice(0, 3);
+    /* 已完成的團不用再一直佔位子，這裡只留還需要主揪關注的團 */
+    const items = list.filter(function (g) { return g.status !== '已完成'; }).slice(0, 3);
     if (!items.length) { box.innerHTML = ''; return; }
 
     box.innerHTML =
@@ -276,7 +277,7 @@ function renderMyGroups() {
           const sent = g.status === '已送單';
           const badge = sent
             ? '<span class="badge warn">已送單</span>'
-            : (left ? '<span class="badge">收單中</span>' : '<span class="badge warn">已截止</span>');
+            : (left ? '<span class="badge">開團中</span>' : '<span class="badge warn">已截止</span>');
           const when = g.deliveryDate ? fmtDate(g.deliveryDate) : '';
           return '<div class="person" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
             '<div style="flex:1;min-width:0;">' +

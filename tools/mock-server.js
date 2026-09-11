@@ -194,6 +194,14 @@ function handle(action, p) {
         recipients
       };
     }
+    case 'completeSession': {
+      const s = sessions[p.sessionId];
+      if (!s) throw new Error('找不到這個揪團');
+      if (s.token !== p.token) throw new Error('管理權杖不正確，無法標記完成');
+      if (s.status !== '已送單') throw new Error('要先送單，店家出餐後才能標記為完成');
+      s.status = '已完成';
+      return { ok: true, message: '已標記為完成' };
+    }
     default: throw new Error('未知的操作：' + action);
   }
 }

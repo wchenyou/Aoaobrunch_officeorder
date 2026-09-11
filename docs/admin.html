@@ -92,6 +92,7 @@ function buildShell() {
           '<dl id="metaList" style="margin:0;"></dl>' +
         '</div>' +
         '<button class="btn btn-primary btn-block side-submit" data-finalize>送單並通知店家</button>' +
+        '<div id="completeArea"></div>' +
         '<div id="msgArea"></div>' +
       '</aside>' +
     '</div>' +
@@ -167,17 +168,22 @@ function renderAll() {
   document.getElementById('barTotal').textContent = total;
 
   /* 狀態 */
-  const sent = SESSION.status === '已送單';
+  const completed = SESSION.status === '已完成';
+  const sent = SESSION.status === '已送單' || completed;
   const left = timeLeft(SESSION.deadline);
-  document.getElementById('statusBadge').innerHTML = sent
-    ? '<span class="badge warn">已送單</span>'
-    : (left ? '<span class="badge">收單中</span>' : '<span class="badge warn">已截止</span>');
+  document.getElementById('statusBadge').innerHTML = completed
+    ? '<span class="badge done">已完成</span>'
+    : (sent
+      ? '<span class="badge warn">已送單</span>'
+      : (left ? '<span class="badge">開團中</span>' : '<span class="badge warn">已截止</span>'));
 
-  document.getElementById('deadlineLine').innerHTML = sent
-    ? '這團已經送單，同事無法再點餐。'
-    : (left
-      ? '收單截止 ' + fmtDateTime(SESSION.deadline) + '，<span class="countdown">還有 ' + left + '</span>'
-      : '已經超過收單截止時間，同事無法再點餐或修改。');
+  document.getElementById('deadlineLine').innerHTML = completed
+    ? '這團已經出餐完成了。'
+    : (sent
+      ? '這團已經送單，同事無法再點餐。'
+      : (left
+        ? '收單截止 ' + fmtDateTime(SESSION.deadline) + '，<span class="countdown">還有 ' + left + '</span>'
+        : '已經超過收單截止時間，同事無法再點餐或修改。'));
 
   /* 低消進度 */
   const minOrder = Number(SETTINGS['低消金額'] || 0);
@@ -243,9 +249,35 @@ function renderAll() {
 
   /* 送單按鈕 */
   if (sent) {
-    setFinalize('已送單', true);
-    document.getElementById('barNote').textContent = '已通知店家';
+    setFinalize(completed ? '已完成' : '已送單', true);
+    document.getElementById('barNote').textContent = completed ? '已出餐完成' : '已通知店家';
   }
+
+  /* 送單後、店家出餐前，讓主揪回來標記完成——標記後這團就會從首頁「你開過的團」列表消失 */
+  const completeArea = document.getElementById('completeArea');
+  if (completeArea) {
+    completeArea.innerHTML = (SESSION.status === '已送單')
+      ? '<button type="button" class="btn btn-ghost btn-block btn-sm" id="completeBtn" style="margin-top:8px;">✅ 店家已出餐，標記完成</button>'
+      : '';
+    const completeBtn = document.getElementById('completeBtn');
+    if (completeBtn) completeBtn.addEventListener('click', completeGroup);
+  }
+}
+
+function completeGroup() {
+  if (!confirm('確定要標記這團已完成嗎？\n標記後就會從你首頁的「你開過的團」列表移除。')) return;
+  const btn = document.getElementById('completeBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 標記中…'; }
+  apiPost('completeSession', { sessionId: SESSION_ID, token: TOKEN }).then(function () {
+    SESSION.status = '已完成';
+    updateMyGroup(SESSION.id, { status: '已完成' });
+    renderAll();
+    document.getElementById('msgArea').innerHTML =
+      '<div class="notice notice-good"><span class="ico">✅</span><div>這團已經標記為完成了。</div></div>';
+  }).catch(function (err) {
+    alert(err.message || String(err));
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 店家已出餐，標記完成'; }
+  });
 }
 
 function finalize() {

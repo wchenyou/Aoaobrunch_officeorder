@@ -49,7 +49,7 @@ const errs = [];
   const bannerText = hasBanner ? (await p2.textContent('#myGroups')) : '';
   console.log('5. 重開首頁看到「你開過的團」→', hasBanner ? 'OK' : '✗ 沒出現');
   console.log('   顯示公司名稱 →', bannerText.includes('大真股份有限公司') ? 'OK' : '✗');
-  console.log('   顯示收單中狀態 →', bannerText.includes('收單中') ? 'OK' : '✗');
+  console.log('   顯示開團中狀態 →', bannerText.includes('開團中') ? 'OK' : '✗');
   await p2.screenshot({ path: SHOTS + '/recover-1-banner.png', fullPage: false });
 
   // 7. 點「回到管理頁」應該真的進得去

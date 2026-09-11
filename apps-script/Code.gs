@@ -160,6 +160,7 @@ function doPost(e) {
       case 'updateOrder': return jsonOut_(updateOrder_(payload));
       case 'cancelOrder': return jsonOut_(cancelOrder_(payload));
       case 'finalizeSession': return jsonOut_(finalizeSession_(payload));
+      case 'completeSession': return jsonOut_(completeSession_(payload));
       default: return jsonOut_({ ok: false, error: '未知的操作：' + payload.action });
     }
   } catch (err) {
@@ -602,6 +603,20 @@ function finalizeSession_(p) {
   }
 
   return { ok: true, message: recipients.length ? '已送單並寄出通知信' : '已送單，但沒有設定收件信箱，請到「設定」工作表補上店家收單Email', recipients: recipients };
+}
+
+/**
+ * 店家出餐完成後，主揪回管理頁按「標記已完成」。
+ * 標記完之後這團就不會再出現在主揪首頁的「你開過的團」列表——那邊只留還需要主揪關注的團，
+ * 已經出完餐的團就不用再一直佔位子。
+ */
+function completeSession_(p) {
+  const session = findSession_(p.sessionId);
+  if (!session) throw new Error('找不到這個揪團');
+  if (session.token !== p.token) throw new Error('管理權杖不正確，無法標記完成');
+  if (session.status !== '已送單') throw new Error('要先送單，店家出餐後才能標記為完成');
+  markSessionStatus_(session.id, '已完成');
+  return { ok: true, message: '已標記為完成' };
 }
 
 function markSessionStatus_(sessionId, status) {
