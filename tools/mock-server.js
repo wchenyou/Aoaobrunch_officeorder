@@ -179,7 +179,19 @@ function handle(action, p) {
       const rows = orderRows.filter(o => o.sessionId === s.id && o.status !== '已取消');
       if (!rows.length) throw new Error('目前還沒有任何訂單，無法送單');
       s.status = '已送單';
-      return { ok: true, message: '已送單並寄出通知信' };
+      // 跟 Code.gs 的 finalizeSession_ 一樣：店家 + 副本 + 主揪信箱，去重
+      let recipients = [SETTINGS['店家收單Email'], SETTINGS['副本收單Email']].filter(v => v && v.indexOf('@') > -1);
+      if (s.organizerEmail && s.organizerEmail.indexOf('@') > -1) recipients.push(s.organizerEmail);
+      recipients = recipients.filter((v, i) => recipients.indexOf(v) === i);
+      if (recipients.length) {
+        sentMails.push({ to: recipients.join(','), kind: '送單通知', sentAt: new Date(), sessionId: s.id });
+        console.log('[mock mail] 送單通知 →', recipients.join(', '));
+      }
+      return {
+        ok: true,
+        message: recipients.length ? '已送單並寄出通知信' : '已送單，但沒有設定收件信箱，請到「設定」工作表補上店家收單Email',
+        recipients
+      };
     }
     default: throw new Error('未知的操作：' + action);
   }
