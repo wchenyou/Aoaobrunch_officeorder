@@ -392,6 +392,58 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 }
 .item.open .item-panel { display: block; }
 
+/* ---------- 菜單相片預覽（發起團購頁／點餐頁共用） ---------- */
+
+.menu-preview { margin-bottom: 14px; }
+
+.menu-preview-toggle {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  background: var(--surface);
+  border: 1.5px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 11px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  color: var(--ink-mid);
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.menu-preview-toggle:hover { border-color: var(--peach); color: var(--orange-deep); }
+.menu-preview-toggle .chev { margin-left: auto; transition: transform .2s; color: var(--ink-soft); }
+.menu-preview-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+.mp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.mp-grid[hidden] { display: none; }
+.mp-card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.mp-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--surface-alt); }
+.mp-card-body { padding: 8px 10px 10px; }
+.mp-name { font-size: 12.5px; font-weight: 800; line-height: 1.35; }
+.mp-price { font-family: var(--font-num); font-weight: 800; color: var(--orange-deep); font-size: 12.5px; margin-top: 3px; }
+
+/* 點餐清單裡的小縮圖，不改變原本的品項列高度與互動範圍 */
+.item-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
 .optgroup { margin-top: 14px; }
 .optgroup-label {
   font-size: 12px;

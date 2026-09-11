@@ -72,6 +72,7 @@ function render(existing) {
   }
 
   html += '<div id="topNotice"></div>';
+  html += menuPreviewSection(MENU);
 
   const cats = [];
   MENU.forEach(function (m) { if (cats.indexOf(m.category) < 0) cats.push(m.category); });
@@ -209,6 +210,7 @@ function buildMenu(cats) {
       html +=
         '<div class="item" data-i="' + idx + '">' +
           '<div class="item-row">' +
+            (m.imageUrl ? '<img class="item-thumb" src="' + escapeHtml(m.imageUrl) + '" alt="" loading="lazy">' : '') +
             '<div class="item-body">' +
               '<div class="item-name">' + escapeHtml(m.name) + '</div>' +
               tagsHtml(m) +

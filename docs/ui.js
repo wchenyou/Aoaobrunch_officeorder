@@ -100,6 +100,50 @@ document.addEventListener('click', function (e) {
   if (el) copyText(el.textContent, btn);
 });
 
+/* ==========================================================================
+   菜單相片預覽——發起團購頁、點餐頁共用
+   只有拍過照的品項（目前是 4 款主餐）才會出現在這個格狀預覽，
+   飲料沒有照片，維持原本的文字清單就好，不用硬塞進來湊版面。
+   預設收合，不會把「建立揪團」「選餐送出」這些主要動作往下擠。
+   ========================================================================== */
+
+function menuPreviewSection(menu) {
+  const withPhoto = (menu || []).filter(function (m) { return m.imageUrl; });
+  if (!withPhoto.length) return '';
+  return (
+    '<div class="menu-preview">' +
+      '<button type="button" class="menu-preview-toggle" data-menu-preview-toggle aria-expanded="false">' +
+        '<span>🍽️ 先看看菜單長什麼樣</span><span class="chev">▾</span>' +
+      '</button>' +
+      '<div class="mp-grid" hidden>' +
+        withPhoto.map(function (m) {
+          return '<div class="mp-card">' +
+            '<img src="' + escapeHtml(m.imageUrl) + '" alt="' + escapeHtml(m.name) + '" loading="lazy">' +
+            '<div class="mp-card-body">' +
+              '<div class="mp-name">' + escapeHtml(m.name) + '</div>' +
+              '<div class="mp-price">' + menuPriceLabel(m) + '</div>' +
+            '</div>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function menuPriceLabel(m) {
+  if (m.priceL) return 'M $' + m.priceM + '　L $' + m.priceL;
+  return '$' + m.priceM;
+}
+
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('[data-menu-preview-toggle]');
+  if (!btn) return;
+  const grid = btn.parentElement.querySelector('.mp-grid');
+  const wasOpen = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', wasOpen ? 'false' : 'true');
+  if (grid) grid.hidden = wasOpen;
+});
+
 /** 整頁的狀態訊息（找不到揪團、載入失敗等） */
 function centerMsg(title, desc) {
   return '<div class="center-msg">' + PAW_MARK +
