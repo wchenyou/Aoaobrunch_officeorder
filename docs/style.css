@@ -850,6 +850,10 @@ body.lightbox-open { overflow: hidden; }
 .layout { display: block; }
 .col-side > .card:last-of-type { margin-bottom: 14px; }
 
+/* 沒有低消門檻（自己去取、或沒設金額）時這塊是空的，直接不佔位子，
+   跟它並排的分享連結卡片才能自動撐滿整排。 */
+#minOrderCard:empty { display: none; }
+
 /* 購物車 / 送單列的小計 */
 .cart-total {
   display: flex;
@@ -921,6 +925,12 @@ body.lightbox-open { overflow: hidden; }
   .price-badge .p-dual { font-size: 13.5px; }
   .cartbar { padding: 12px 12px 12px 24px; }
   .cartbar-total { font-size: 21px; }
+
+  /* 「外送低消」跟「分享給同事的點餐連結」寬度夠了就左右並排。
+     外送低消卡片是有條件才出現的，用 flex 而不是 grid：空的時候
+     另一塊自然撐滿整排，不會留白。 */
+  .top-row { display: flex; align-items: flex-start; gap: 16px; }
+  .top-row > * { flex: 1 1 0; min-width: 0; margin-bottom: 14px; }
 }
 
 /* ---------- 桌機：雙欄 ---------- */

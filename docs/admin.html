@@ -65,13 +65,18 @@ function buildShell() {
       '<div class="stat"><div class="stat-num accent" id="stTotal">$0</div><div class="stat-label">小計</div></div>' +
     '</div>' +
 
-    '<div id="minOrderCard"></div>' +
-
-    '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>分享給同事的點餐連結</h2></div>' +
-      linkBox(orderUrl, 'shareUrl') +
-      '<div class="tiny" id="deadlineLine" style="margin-top:9px;"></div>' +
-      '<a class="btn btn-ghost btn-block btn-sm" style="text-decoration:none;text-align:center;display:block;margin-top:10px;" href="' + orderUrl + '">🐾 主揪自己也要點餐，用這顆</a>' +
+    /* 桌機夠寬的話，「外送低消」跟「分享給同事的點餐連結」左右並排，
+       不用各佔一整排、平白多滑一段。外送低消卡片是有條件才顯示的
+       （自己去取、或沒設低消金額時是空的），所以用 flex 不用 grid：
+       其中一塊是空的時候，另一塊會自動撐滿整排，不會留一塊空白。 */
+    '<div class="top-row">' +
+      '<div id="minOrderCard"></div>' +
+      '<div class="card">' +
+        '<div class="card-head"><span class="dot"></span><h2>分享給同事的點餐連結</h2></div>' +
+        linkBox(orderUrl, 'shareUrl') +
+        '<div class="tiny" id="deadlineLine" style="margin-top:9px;"></div>' +
+        '<a class="btn btn-ghost btn-block btn-sm" style="text-decoration:none;text-align:center;display:block;margin-top:10px;" href="' + orderUrl + '">🐾 主揪自己也要點餐，用這顆</a>' +
+      '</div>' +
     '</div>' +
 
     /* 桌機雙欄：左邊訂單、右邊訂購資訊與送單 */
