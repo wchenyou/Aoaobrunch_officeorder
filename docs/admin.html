@@ -257,7 +257,7 @@ function finalize() {
   }
   if (!confirm('確定要送單嗎？\n送出後同事就不能再點餐或修改，店家會收到一封彙整好的訂單信。' + warn)) return;
 
-  setFinalize('<span class="spin"></span>', true);
+  setFinalize('<span class="spin"></span> 送單中…', true);
 
   apiPost('finalizeSession', { sessionId: SESSION_ID, token: TOKEN }).then(function (res) {
     SESSION.status = '已送單';

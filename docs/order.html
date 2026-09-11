@@ -388,7 +388,7 @@ function submit() {
   const globalNote = document.getElementById('globalNote').value.trim();
   const items = cart.map(function (l) { return Object.assign({}, l, { note: globalNote }); });
 
-  setSubmit('<span class="spin"></span>', true);
+  setSubmit('<span class="spin"></span> 送出中…', true);
   msgArea.innerHTML = '';
 
   apiPost(EDIT_CODE ? 'updateOrder' : 'submitOrder', {
@@ -418,11 +418,16 @@ function submit() {
 
 function cancelOrder() {
   if (!confirm('確定要取消這筆訂單嗎？')) return;
+  const btn = document.getElementById('cancelBtn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 取消中…'; }
   apiPost('cancelOrder', { sessionId: SESSION_ID, orderCode: EDIT_CODE }).then(function () {
     clearCartDraft(SESSION_ID);
     page.innerHTML = centerMsg('訂單已取消', '如果改變主意，重新打開主揪給的點餐連結再點一次就好。');
     document.querySelectorAll('.cartbar').forEach(function (b) { b.remove(); });
-  }).catch(function (err) { alert(err.message || String(err)); });
+  }).catch(function (err) {
+    alert(err.message || String(err));
+    if (btn) { btn.disabled = false; btn.textContent = '取消這筆訂單'; }
+  });
 }
 
 function notice(kind, ico, text) {
