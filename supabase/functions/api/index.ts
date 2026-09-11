@@ -149,7 +149,9 @@ async function getOrderByCode(sessionId: string, orderCode: string) {
 async function sendEmail(settings: Record<string, string>, to: string, subject: string, body: string) {
   const apiKey = settings['寄信API金鑰'];
   if (!apiKey) { console.log('[email 略過：尚未在設定填「寄信API金鑰」]', to, subject); return false; }
-  const from = settings['寄件人Email'] || 'onboarding@resend.dev';
+  const fromEmail = settings['寄件人Email'] || 'onboarding@resend.dev';
+  const fromName = (settings['寄件人名稱'] || '').trim();
+  const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
