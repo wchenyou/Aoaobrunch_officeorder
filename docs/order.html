@@ -72,7 +72,7 @@ function render(existing) {
   }
 
   html += '<div id="topNotice"></div>';
-  html += '<div class="quick-row">' + menuButton() + '</div>';
+  html += '<div class="fab-stack has-cartbar">' + menuButton() + '</div>';
 
   const cats = [];
   MENU.forEach(function (m) { if (cats.indexOf(m.category) < 0) cats.push(m.category); });

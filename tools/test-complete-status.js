@@ -70,11 +70,13 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   const badgeAfterComplete = await p3.locator('#statusBadge .badge').innerText();
   console.log('標記完成後管理頁狀態 =', badgeAfterComplete, badgeAfterComplete === '已完成' ? 'OK' : '✗');
 
-  // ---------- 5. 首頁「你開過的團」不再出現這團（唯一一團被標記完成後，收合按鈕整個消失） ----------
+  // ---------- 5. 首頁「你開過的團」不再出現這團（唯一一團被標記完成後，角標消失，但按鈕本身還在） ----------
   await p1.goto(BASE + '/index.html');
   await p1.waitForTimeout(1500); // 給非同步同步一點時間
-  const toggleGone = await p1.$('#myGroupsToggle');
-  console.log('標記完成後首頁「你開過的團」按鈕 =', toggleGone === null ? 'OK（已消失）' : '✗ 還留著');
+  const toggleStillThere = await p1.$('#myGroupsToggle');
+  console.log('「你開過的團」按鈕本身還在 =', toggleStillThere !== null ? 'OK' : '✗');
+  const badgeGone = await p1.$('#myGroupsToggle .fab-badge');
+  console.log('標記完成後角標消失（沒有需要關注的團了） =', badgeGone === null ? 'OK（已消失）' : '✗ 還留著');
 
   console.log('\n錯誤數：', errors.length);
   errors.forEach(e => console.log(' -', e));

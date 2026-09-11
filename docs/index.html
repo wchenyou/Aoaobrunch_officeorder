@@ -29,7 +29,7 @@ page.innerHTML =
   '<h1>來揪一團吧 🐾</h1>' +
   '<p class="muted">填一次訂購資訊，系統會給你兩個連結：一個丟到辦公室群組讓大家點餐，一個你自己留著看訂單、按送單。</p>' +
 
-  '<div class="quick-row" id="quickRow">' + menuButton() + '</div>' +
+  '<div class="fab-stack" id="fabStack">' + menuButton() + '</div>' +
 
   '<div class="notice notice-info" id="rules"><span class="ico">📌</span><div>載入店家規定中…</div></div>' +
 
@@ -238,14 +238,25 @@ document.getElementById('form').addEventListener('submit', function (e) {
   });
 });
 /* ---------- 你開過的團（存在這台裝置的瀏覽器裡） ----------
-   收合在一顆小按鈕後面，不要一開頁面就佔掉最上面一大塊——
-   要開新團的人多半用不到這區塊，讓他直接看到表單比較重要。 */
+   跟「查看菜單」一起懸浮在右下角。按鈕本身固定存在，不管有沒有記住
+   任何團——沒有的話點開就是空狀態，不會讓按鈕忽有忽無、位置一直跳。
+   有幾團就在按鈕右上角用數字角標顯示。 */
 
 renderMyGroups();
 
 function renderMyGroups() {
-  const quickRow = document.getElementById('quickRow');
-  let toggleBtn = null;
+  const fabStack = document.getElementById('fabStack');
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.id = 'myGroupsToggle';
+  toggleBtn.className = 'btn btn-ghost btn-sm';
+  toggleBtn.innerHTML = '🐾 你開過的團';
+  toggleBtn.addEventListener('click', function () {
+    if (document.getElementById('myGroups')) { closeModal(); return; }
+    openGroupsModal();
+  });
+  fabStack.appendChild(toggleBtn);
 
   function visibleGroups() {
     /* 已完成的團不用再一直佔位子，這裡只留還需要主揪關注的團 */
@@ -253,6 +264,12 @@ function renderMyGroups() {
   }
 
   function cardHtml(items) {
+    if (!items.length) {
+      return '<div id="myGroups"><div class="card" style="border-color:var(--peach);">' +
+        '<div class="card-head"><span class="dot"></span><h2>你開過的團</h2></div>' +
+        '<div class="empty">' + PAW_MARK + '<div>這台裝置還沒有記住任何團<br><span class="tiny">建好團之後會自動記住，方便你之後回來看訂單</span></div></div>' +
+      '</div></div>';
+    }
     return '<div id="myGroups"><div class="card" style="border-color:var(--peach);">' +
       '<div class="card-head"><span class="dot"></span><h2>你開過的團</h2>' +
         '<span class="spacer"></span><span class="tiny">這台裝置記得的</span></div>' +
@@ -295,29 +312,23 @@ function renderMyGroups() {
     wireCard(openModal(cardHtml(visibleGroups().slice(0, 3))));
   }
 
-  function syncToggle(list) {
-    if (!list.length) {
-      if (toggleBtn) { toggleBtn.remove(); toggleBtn = null; }
-      if (document.getElementById('myGroups')) closeModal();
-      return;
+  function syncBadge(list) {
+    let badge = toggleBtn.querySelector('.fab-badge');
+    if (list.length) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'fab-badge';
+        toggleBtn.appendChild(badge);
+      }
+      badge.textContent = list.length;
+    } else if (badge) {
+      badge.remove();
     }
-    if (!toggleBtn) {
-      toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.id = 'myGroupsToggle';
-      toggleBtn.className = 'btn btn-ghost btn-sm';
-      toggleBtn.addEventListener('click', function () {
-        if (document.getElementById('myGroups')) { closeModal(); return; }
-        openGroupsModal();
-      });
-      quickRow.appendChild(toggleBtn);
-    }
-    toggleBtn.innerHTML = '🐾 你開過的團（' + list.length + '）';
   }
 
   function refresh() {
     const list = visibleGroups();
-    syncToggle(list);
+    syncBadge(list);
     if (document.getElementById('myGroups')) openGroupsModal(); // 浮窗開著的話內容也要跟著換新
   }
 
