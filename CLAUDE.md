@@ -35,7 +35,7 @@ tools/                  開發用，不會部署
 
 前端不直接碰資料庫，一律透過 Supabase Edge Function（`supabase/functions/api/index.ts`）的 JSON API。Postgres 有四張表：**menu_items / orders / sessions / settings**，全部關了 RLS、不對外開放任何直接讀寫——只有 Edge Function（用 service role key）能碰，跟以前「前端只透過後端 API 講話」的原則一致。
 
-`settings` 表身兼兩種設定：一種是原本就有的營業規則（店家收單Email、低消金額…），新增了「**寄信API金鑰**」「**寄件人Email**」（Resend 的設定）跟「**店家後台密碼**」——刻意放在資料表而不是 Supabase 的 Edge Function Secrets，因為 MCP 工具沒有管理 secrets 的權限，而且放資料表剛好符合「不用改程式碼、直接在後台表格改一格」的習慣。要改密碼或補寄信金鑰，去 Supabase 後台的 Table Editor 開 `settings` 表改就好。
+`settings` 表身兼兩種設定：一種是原本就有的營業規則（店家收單Email、低消金額…），新增了「**寄件人Email**」「**寄信Gmail應用程式密碼**」「**寄件人名稱**」（Gmail SMTP 寄信用）跟「**店家後台密碼**」——刻意放在資料表而不是 Supabase 的 Edge Function Secrets，因為 MCP 工具沒有管理 secrets 的權限，而且放資料表剛好符合「不用改程式碼、直接在後台表格改一格」的習慣。要改密碼或換寄信帳號，去 Supabase 後台的 Table Editor 開 `settings` 表改就好。（`寄信API金鑰` 是搬家初期用過的 Resend 設定，現在沒在用，留著沒刪。）
 
 ## 本機怎麼跑
 
@@ -64,7 +64,7 @@ node tools/test-menu-zoom.js                        # 查看菜單按鈕、圖�
 
 **收單截止時間有硬規則。** 店家最晚只收到「預訂日期前一天 15:00」，`createSession()` 會擋下更晚的設定。截止後同事不能新增或修改，`submitOrderCore` / `updateOrder` / `cancelOrder` 都會再驗一次，不能只靠前端擋。
 
-**通知只在送單時寄。** 不要改成每筆訂單都發信，會洗版店家信箱。建團時另外寄一封管理連結給主揪，那是找回連結的命脈。**寄信要靠 `settings.寄信API金鑰`（Resend）先設定好**，沒設定的話 `sendEmail()` 會直接跳過、不會讓整支 API 掛掉，但也真的不會寄出去——這是目前唯一還沒接上的一塊，使用者要自己申請 Resend 帳號、把金鑰貼進 Supabase 的 `settings` 表。
+**通知只在送單時寄。** 不要改成每筆訂單都發信，會洗版店家信箱。建團時另外寄一封管理連結給主揪，那是找回連結的命脈。**寄信走 Gmail SMTP**（`settings.寄件人Email` + `settings.寄信Gmail應用程式密碼`，直接登入 `smtp.gmail.com` 寄，效果等同那個 Gmail 帳號本人寄信，收件人沒有限制，不用像 Resend 那樣得驗證網域）。密碼欄位是空的話 `sendEmail()` 會直接跳過、不會讓整支 API 掛掉，但也真的不會寄出去——密碼要請 Gmail 帳號本人（目前設定是 sunny30248@gmail.com）去 Google 帳號開兩步驟驗證、產生一組應用程式密碼，貼進 Supabase 的 `settings` 表。
 
 **送單後才能標記「已完成」，兩個地方都能標記。** 主揪自己在 `admin.html`（用管理權杖）、店家在 `vendor.html`（用共用密碼）都可以把已送單的團標成「已完成」，背後是同一個狀態欄位。標記完成後這團就不會再出現在主揪首頁「你開過的團」列表。
 
@@ -88,7 +88,7 @@ node tools/test-menu-zoom.js                        # 查看菜單按鈕、圖�
 - 改訂單的連結只靠 8 碼隨機訂單編號保護，適合辦公室訂午餐的信任程度。店家後台則是單一共用密碼，同樣是「內部信任」等級，不是真的帳號系統。
 - 管理頁與店家後台是輪詢／手動重新整理，不是推播。
 - localStorage 只在單一裝置有效，換裝置靠信件（前提是寄信服務有設定好）。
-- 寄信（Resend）金鑰目前還沒填，`finalizeSession` / `createSession` 等會正常執行但實際上不會寄出信件，只會在回傳訊息裡提醒還沒設定。
+- 寄信用的 Gmail 應用程式密碼目前還沒填，`finalizeSession` / `createSession` 等會正常執行但實際上不會寄出信件，只會在回傳訊息裡提醒還沒設定。
 
 ## 部署的兩個地雷
 
