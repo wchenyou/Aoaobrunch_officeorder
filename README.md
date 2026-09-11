@@ -148,14 +148,36 @@
 ## 檔案結構
 
 ```
+CLAUDE.md          給 Claude Code 的專案脈絡
 apps-script/
   Code.gs          後端：JSON API、試算表讀寫、送單信、初始化
 docs/              ← GitHub Pages 就是指這個資料夾
   index.html       發起揪團
   order.html       點餐 / 改單 / 取消
   admin.html       主揪管理與送單
-  style.css        設計系統（色彩、元件、深色模式）
+  style.css        設計系統（色彩、元件、深色模式、RWD）
   api.js           呼叫後端的共用函式
-  ui.js            共用元件（頁首、頁尾、複製按鈕、倒數計時）
+  ui.js            共用元件、localStorage 工具
   config.js        ★ 要填入你的 Apps Script 網址
+tools/             開發用，不會被部署
+  mock-server.js   本機假後端 + 靜態站台
+  test-*.js        Playwright 端對端測試
 ```
+
+## 在本機開發
+
+不用接真的 Apps Script 就能改前端：
+
+```bash
+node tools/mock-server.js     # 打開 http://localhost:8899
+```
+
+假後端把 `Code.gs` 的行為用 Node 重寫一遍，資料放記憶體、重開就清空。三組端對端測試：
+
+```bash
+node tools/test-flow.js       # 建團 → 點餐 → 改單 → 送單 → 截止鎖定
+node tools/test-draft.js      # 購物車草稿、送出後重開、手動更新
+node tools/test-recover.js    # 主揪找回管理頁、建團寄信、換裝置
+```
+
+改了 `Code.gs` 的 API 行為，記得 `tools/mock-server.js` 要一起改。
