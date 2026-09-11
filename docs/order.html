@@ -63,11 +63,6 @@ function render(existing) {
       '</dl>' +
     '</div>';
 
-  if (SETTINGS['颱風假政策文字']) {
-    html += '<div class="notice notice-info"><span class="ico">🌀</span><div>' +
-      escapeHtml(SETTINGS['颱風假政策文字']) + '</div></div>';
-  }
-
   if (closed) {
     clearCartDraft(SESSION_ID);
     html += '<div class="notice notice-warn"><span class="ico">⏰</span><div><strong>這團已經截止收單了</strong><br>' +
