@@ -269,6 +269,7 @@ p:last-child { margin-bottom: 0; }
 input[type="text"], input[type="tel"], input[type="email"],
 input[type="date"], input[type="datetime-local"], select, textarea {
   width: 100%;
+  max-width: 100%;
   padding: 11px 13px;
   border: 1.5px solid var(--border);
   border-radius: var(--r-sm);
@@ -284,6 +285,14 @@ input[type="date"], input[type="datetime-local"], select, textarea {
    宣告過 light dark，瀏覽器會自動配一個跟深色/淺色模式一致的箭頭
    顏色，不用自己刻。 */
 select { cursor: pointer; }
+/* iOS（不管是 Safari 還是 iOS 版 Chrome，底層都是 WebKit）的日期欄位
+   是已知的老問題：它顯示日期用的內部渲染有自己的一套最小寬度，
+   在某些字體大小/地區格式（例如「2026年8月12日」這種較長的完整
+   中文日期字串）下，畫出來的內容會比 CSS 設定的寬度還寬，直接畫出
+   邊框外面，width:100% 攔不住。開發機（Chromium／WebKit 桌機版）
+   都重現不出來，只能用 overflow:hidden 這種「不管你想畫多寬，反正
+   邊框外一律裁掉」的保險做法硬擋下來。 */
+input[type="date"], input[type="datetime-local"] { overflow: hidden; }
 input:focus, textarea:focus {
   outline: none;
   border-color: var(--orange);
