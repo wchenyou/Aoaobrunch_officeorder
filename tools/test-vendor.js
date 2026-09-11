@@ -1,6 +1,6 @@
 /* 測試店家後台（vendor.html）：密碼登入（含錯誤密碼、記住密碼）、
-   查詢區間顯示已送單的團、品項彙總不含姓名、標記完成、CSV 下載會觸發。
-   會自己建一團、送單，跑完後清掉。 */
+   待處理訂單頁（不用選日期，品項彙總不含姓名）、依日期查詢頁（狀態篩選、
+   CSV 下載）、標記完成。會自己建一團、送單，跑完後清掉。 */
 const { chromium } = require('playwright');
 const BASE = process.env.BASE || 'http://localhost:8900';
 const SUPABASE_URL = 'https://qoyojgephigwttbhbtft.supabase.co/functions/v1/api';
@@ -12,7 +12,6 @@ const SUPABASE_KEY = 'sb_publishable_-sPP27i_r99uhzwS9W2Z-g_yGwgS8xD';
   const errors = [];
 
   // 先用 API 直接建一團 + 送出一筆訂單 + 送單，這樣店家後台才查得到東西
-  const setup = await ctx.request.newContext ? null : null;
   const p0 = await ctx.newPage();
   const created = await p0.evaluate(async ({ url, key }) => {
     async function call(action, body) {
@@ -41,41 +40,46 @@ const SUPABASE_KEY = 'sb_publishable_-sPP27i_r99uhzwS9W2Z-g_yGwgS8xD';
   await p1.waitForSelector('.notice-warn', { timeout: 10000 });
   console.log('錯誤密碼被擋下 → OK');
 
-  // ---------- 2. 正確密碼登入 ----------
+  // ---------- 2. 正確密碼登入，預設進到「待處理訂單」頁 ----------
   await p1.fill('#pw', 'aoao4523022');
   await p1.click('#loginBtn');
-  await p1.waitForSelector('#dateFrom', { timeout: 10000 });
+  await p1.waitForSelector('#vtabPending', { timeout: 10000 });
   console.log('正確密碼登入 → OK');
 
-  // ---------- 3. 查詢（預設區間應該已經含今天+30天，含剛建立的測試團） ----------
-  await p1.waitForSelector('#listArea .card', { timeout: 10000 });
-  const listText = await p1.locator('#listArea').innerText();
-  const foundOrganizer = listText.includes('店家後台測試');
-  console.log('查得到剛剛建立的測試團 →', foundOrganizer ? 'OK' : '✗');
-  const leaksName = listText.includes('隱藏姓名王小明');
-  console.log('畫面上沒有洩漏跟團者姓名 →', leaksName ? '✗ 洩漏了！' : 'OK');
-  const hasItem = listText.includes('美式厚牛漢堡套餐');
-  console.log('品項彙總顯示品項名稱 →', hasItem ? 'OK' : '✗');
+  // ---------- 3. 待處理訂單：不用選日期，剛剛那筆已送單的團應該在裡面 ----------
+  await p1.waitForSelector('#pendingList .card', { timeout: 10000 });
+  const pendingText = await p1.locator('#pendingList').innerText();
+  console.log('待處理頁查得到剛剛建立的測試團 →', pendingText.includes('店家後台測試') ? 'OK' : '✗');
+  console.log('待處理頁沒有洩漏跟團者姓名 →', pendingText.includes('隱藏姓名王小明') ? '✗ 洩漏了！' : 'OK');
+  console.log('待處理頁顯示品項名稱 →', pendingText.includes('美式厚牛漢堡套餐') ? 'OK' : '✗');
 
-  // ---------- 4. 重新整理後，記住的密碼會自動登入 ----------
-  await p1.reload();
+  // ---------- 4. 依日期查詢頁：切過去、查詢、狀態篩選、CSV 下載 ----------
+  await p1.click('label[for="vtabHistory"]');
   await p1.waitForSelector('#dateFrom', { timeout: 10000 });
-  console.log('重新整理後用記住的密碼自動登入 → OK');
+  await p1.selectOption('#statusFilter', '已送單');
+  await p1.click('#queryBtn');
+  await p1.waitForSelector('#historyList .card', { timeout: 10000 });
+  const historyText = await p1.locator('#historyList').innerText();
+  console.log('依日期查詢也查得到、也不洩漏姓名 →', (historyText.includes('店家後台測試') && !historyText.includes('隱藏姓名王小明')) ? 'OK' : '✗');
 
-  // ---------- 5. CSV 下載會觸發 ----------
   const [download] = await Promise.all([
     p1.waitForEvent('download', { timeout: 10000 }),
     p1.click('#exportBtn'),
   ]);
   console.log('CSV 下載觸發 → OK，檔名 =', download.suggestedFilename());
 
-  // ---------- 6. 標記完成 ----------
+  // ---------- 5. 重新整理後，記住的密碼會自動登入（回到預設的待處理頁） ----------
+  await p1.reload();
+  await p1.waitForSelector('#pendingList .card', { timeout: 10000 });
+  console.log('重新整理後用記住的密碼自動登入 → OK');
+
+  // ---------- 6. 待處理頁標記完成 ----------
   p1.on('dialog', (d) => d.accept());
   const completeBtn = p1.locator('[data-complete="' + created.sessionId + '"]');
   await completeBtn.click();
   await p1.waitForTimeout(1500);
-  const afterText = await p1.locator('#listArea').innerText();
-  console.log('標記完成後畫面顯示已完成 →', afterText.includes('已完成') ? 'OK' : '✗');
+  const afterText = await p1.locator('#pendingList').innerText();
+  console.log('標記完成後從待處理頁消失 →', !afterText.includes('店家後台測試') ? 'OK' : '✗');
 
   // ---------- 7. 登出後要回到登入畫面，且不會自動帶密碼 ----------
   await p1.click('#logoutBtn');

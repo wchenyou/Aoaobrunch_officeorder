@@ -30,7 +30,6 @@ page.innerHTML =
   '<p class="muted">填一次訂購資訊，系統會給你兩個連結：一個丟到辦公室群組讓大家點餐，一個你自己留著看訂單、按送單。</p>' +
 
   '<div class="quick-row" id="quickRow">' + menuButton() + '</div>' +
-  '<div id="myGroups" hidden></div>' +
 
   '<div class="notice notice-info" id="rules"><span class="ico">📌</span><div>載入店家規定中…</div></div>' +
 
@@ -246,7 +245,6 @@ renderMyGroups();
 
 function renderMyGroups() {
   const quickRow = document.getElementById('quickRow');
-  const panel = document.getElementById('myGroups');
   let toggleBtn = null;
 
   function visibleGroups() {
@@ -254,37 +252,10 @@ function renderMyGroups() {
     return loadMyGroups().filter(function (g) { return g.status !== '已完成'; });
   }
 
-  function syncToggle(list) {
-    if (!list.length) {
-      if (toggleBtn) { toggleBtn.remove(); toggleBtn = null; }
-      panel.hidden = true;
-      return;
-    }
-    if (!toggleBtn) {
-      toggleBtn = document.createElement('button');
-      toggleBtn.type = 'button';
-      toggleBtn.id = 'myGroupsToggle';
-      toggleBtn.className = 'btn btn-ghost btn-sm';
-      toggleBtn.setAttribute('aria-expanded', 'false');
-      toggleBtn.addEventListener('click', function () {
-        const open = toggleBtn.getAttribute('aria-expanded') === 'true';
-        toggleBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
-        panel.hidden = open;
-      });
-      quickRow.appendChild(toggleBtn);
-    }
-    toggleBtn.innerHTML = '🐾 你開過的團（' + list.length + '）<span class="chev">▾</span>';
-  }
-
-  function draw(list) {
-    const items = list.slice(0, 3);
-    syncToggle(list);
-    if (!items.length) { panel.innerHTML = ''; return; }
-
-    panel.innerHTML =
-      '<div class="card" style="border-color:var(--peach);margin-top:10px;">' +
-        '<div class="card-head"><span class="dot"></span><h2>你開過的團</h2>' +
-          '<span class="spacer"></span><span class="tiny">這台裝置記得的</span></div>' +
+  function cardHtml(items) {
+    return '<div id="myGroups"><div class="card" style="border-color:var(--peach);">' +
+      '<div class="card-head"><span class="dot"></span><h2>你開過的團</h2>' +
+        '<span class="spacer"></span><span class="tiny">這台裝置記得的</span></div>' +
         items.map(function (g) {
           const left = g.deadline ? timeLeft(g.deadline) : null;
           const sent = g.status === '已送單';
@@ -302,28 +273,60 @@ function renderMyGroups() {
             '<button class="cart-x" data-forget="' + escapeHtml(g.id) + '" title="從這台裝置移除">×</button>' +
           '</div>';
         }).join('') +
-      '</div>';
+      '</div></div>';
+  }
 
-    panel.querySelectorAll('[data-go]').forEach(function (b) {
+  function wireCard(root) {
+    root.querySelectorAll('[data-go]').forEach(function (b) {
       b.addEventListener('click', function () {
         const g = loadMyGroups().filter(function (x) { return x.id === b.dataset.go; })[0];
         if (g) location.href = adminUrlFor(g.id, g.token);
       });
     });
-    panel.querySelectorAll('[data-forget]').forEach(function (b) {
+    root.querySelectorAll('[data-forget]').forEach(function (b) {
       b.addEventListener('click', function () {
         forgetMyGroup(b.dataset.forget);
-        draw(visibleGroups());
+        refresh();
       });
     });
   }
 
-  const saved = loadMyGroups();
-  draw(visibleGroups());
+  function openGroupsModal() {
+    wireCard(openModal(cardHtml(visibleGroups().slice(0, 3))));
+  }
+
+  function syncToggle(list) {
+    if (!list.length) {
+      if (toggleBtn) { toggleBtn.remove(); toggleBtn = null; }
+      if (document.getElementById('myGroups')) closeModal();
+      return;
+    }
+    if (!toggleBtn) {
+      toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+      toggleBtn.id = 'myGroupsToggle';
+      toggleBtn.className = 'btn btn-ghost btn-sm';
+      toggleBtn.addEventListener('click', function () {
+        if (document.getElementById('myGroups')) { closeModal(); return; }
+        openGroupsModal();
+      });
+      quickRow.appendChild(toggleBtn);
+    }
+    toggleBtn.innerHTML = '🐾 你開過的團（' + list.length + '）';
+  }
+
+  function refresh() {
+    const list = visibleGroups();
+    syncToggle(list);
+    if (document.getElementById('myGroups')) openGroupsModal(); // 浮窗開著的話內容也要跟著換新
+  }
+
+  refresh();
 
   /* 跟後端確認一下目前狀態，避免顯示過期資訊；
      如果後端已經找不到這個揪團（例如後端／資料庫整個換過），
      本機留著的舊快取就沒意義了，直接忘掉，不要一直卡在畫面上。 */
+  const saved = loadMyGroups();
   saved.slice(0, 3).forEach(function (g) {
     apiGet('getAdminData', { session: g.id, token: g.token }).then(function (res) {
       updateMyGroup(g.id, {
@@ -332,12 +335,12 @@ function renderMyGroups() {
         company: res.session.company,
         deliveryDate: res.session.deliveryDate
       });
-      draw(visibleGroups());
+      refresh();
     }).catch(function (err) {
       const msg = (err && err.message) || '';
       if (msg.indexOf('連結無效') > -1 || msg.indexOf('管理權杖不正確') > -1) {
         forgetMyGroup(g.id);
-        draw(visibleGroups());
+        refresh();
       }
       /* 其他錯誤（例如網路暫時不通）就沿用本機那份，不要因為一次連線失敗就忘掉 */
     });

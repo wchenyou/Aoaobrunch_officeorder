@@ -257,7 +257,7 @@ function renderAll() {
   const completeArea = document.getElementById('completeArea');
   if (completeArea) {
     completeArea.innerHTML = (SESSION.status === '已送單')
-      ? '<button type="button" class="btn btn-ghost btn-block btn-sm" id="completeBtn" style="margin-top:8px;">✅ 店家已出餐，標記完成</button>'
+      ? '<button type="button" class="btn btn-ghost btn-block btn-sm" id="completeBtn" style="margin-top:8px;">📦 等店家出餐後，點我標記完成</button>'
       : '';
     const completeBtn = document.getElementById('completeBtn');
     if (completeBtn) completeBtn.addEventListener('click', completeGroup);
@@ -276,7 +276,7 @@ function completeGroup() {
       '<div class="notice notice-good"><span class="ico">✅</span><div>這團已經標記為完成了。</div></div>';
   }).catch(function (err) {
     alert(err.message || String(err));
-    if (btn) { btn.disabled = false; btn.textContent = '✅ 店家已出餐，標記完成'; }
+    if (btn) { btn.disabled = false; btn.textContent = '📦 等店家出餐後，點我標記完成'; }
   });
 }
 
@@ -298,7 +298,7 @@ function finalize() {
     renderAll();
     document.getElementById('msgArea').innerHTML =
       '<div class="notice notice-good"><span class="ico">✅</span><div><strong>' +
-      escapeHtml(res.message) + '</strong><br>訂單明細都留在 Google 試算表裡，收錢時可以對。</div></div>';
+      escapeHtml(res.message) + '</strong><br>訂單明細都留著，收錢時可以對。</div></div>';
     document.getElementById('msgArea').scrollIntoView({ behavior: 'smooth', block: 'center' });
   }).catch(function (err) {
     document.getElementById('msgArea').innerHTML =

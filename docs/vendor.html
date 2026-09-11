@@ -28,7 +28,9 @@ const PW_KEY = 'aoao_vendor_pw';
 let PASSWORD = '';
 try { PASSWORD = localStorage.getItem(PW_KEY) || ''; } catch (e) { /* 無痕模式 */ }
 
-let SESSIONS = [];
+/* 依日期查詢那頁存最後一次查到的結果，CSV 匯出要用 */
+let HISTORY_SESSIONS = [];
+let historyLoadedOnce = false;
 
 if (PASSWORD) {
   tryLoad(PASSWORD, true);
@@ -65,7 +67,6 @@ function tryLoad(pw, silent) {
     PASSWORD = pw;
     try { localStorage.setItem(PW_KEY, pw); } catch (e) { /* 略過 */ }
     renderShell();
-    loadOrders();
   }).catch(function (err) {
     try { localStorage.removeItem(PW_KEY); } catch (e) { /* 略過 */ }
     if (!silent) renderLogin(err.message || '密碼不正確');
@@ -76,10 +77,11 @@ function tryLoad(pw, silent) {
 function logout() {
   try { localStorage.removeItem(PW_KEY); } catch (e) { /* 略過 */ }
   PASSWORD = '';
+  historyLoadedOnce = false;
   renderLogin();
 }
 
-/* ---------- 主畫面 ---------- */
+/* ---------- 主畫面：分兩頁——待處理訂單、依日期查詢 ---------- */
 
 function todayStr(offsetDays) {
   const d = new Date(Date.now() + (offsetDays || 0) * 86400000);
@@ -90,45 +92,114 @@ function renderShell() {
   page.innerHTML =
     '<h1>店家後台 🐾</h1>' +
     '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>查詢區間</h2><span class="spacer"></span>' +
+      '<div class="card-head"><span class="dot"></span><h2>選單</h2><span class="spacer"></span>' +
         '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button></div>' +
+      '<div class="seg">' +
+        '<input type="radio" name="vtab" id="vtabPending" checked><label for="vtabPending">📥 待處理訂單</label>' +
+        '<input type="radio" name="vtab" id="vtabHistory"><label for="vtabHistory">🔍 依日期查詢</label>' +
+      '</div>' +
+    '</div>' +
+    '<div id="pendingPanel"></div>' +
+    '<div id="historyPanel" hidden></div>';
+
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  document.getElementById('vtabPending').addEventListener('change', showPending);
+  document.getElementById('vtabHistory').addEventListener('change', showHistory);
+
+  renderPendingShell();
+  renderHistoryShell();
+  loadPending();
+}
+
+function showPending() {
+  document.getElementById('pendingPanel').hidden = false;
+  document.getElementById('historyPanel').hidden = true;
+}
+function showHistory() {
+  document.getElementById('pendingPanel').hidden = true;
+  document.getElementById('historyPanel').hidden = false;
+  if (!historyLoadedOnce) { historyLoadedOnce = true; loadHistory(); }
+}
+
+/* ---------- 待處理訂單：已送單、還沒標記完成的團——不用選日期，
+   這就是店家現在該準備的東西。 ---------- */
+
+function renderPendingShell() {
+  const el = document.getElementById('pendingPanel');
+  el.innerHTML =
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>待處理訂單</h2><span class="spacer"></span>' +
+        '<button class="btn btn-ghost btn-sm" id="pendingRefreshBtn">重新整理</button></div>' +
+      '<div class="tiny">已經送單、但還沒標記完成的團，不限日期，全部都在這裡。</div>' +
+    '</div>' +
+    '<div id="pendingList"></div>';
+  document.getElementById('pendingRefreshBtn').addEventListener('click', loadPending);
+}
+
+function loadPending() {
+  const list = document.getElementById('pendingList');
+  list.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
+  apiPost('vendorOrders', { password: PASSWORD, status: ['已送單'] }).then(function (res) {
+    renderOrderCards(list, res.sessions || [], '目前沒有待處理的訂單', loadPending);
+  }).catch(function (err) {
+    list.innerHTML = '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
+  });
+}
+
+/* ---------- 依日期查詢：自己選區間跟狀態，可以匯出 CSV ---------- */
+
+function renderHistoryShell() {
+  const el = document.getElementById('historyPanel');
+  el.innerHTML =
+    '<div class="card">' +
+      '<div class="card-head"><span class="dot"></span><h2>依日期查詢</h2></div>' +
       '<div class="grid-2">' +
         '<div class="field"><label for="dateFrom">預訂日期從</label><input type="date" id="dateFrom" value="' + todayStr(-30) + '"></div>' +
         '<div class="field"><label for="dateTo">到</label><input type="date" id="dateTo" value="' + todayStr(30) + '"></div>' +
       '</div>' +
+      '<div class="field"><label for="statusFilter">狀態</label>' +
+        '<select id="statusFilter">' +
+          '<option value="">全部（已送單＋已完成）</option>' +
+          '<option value="已送單">只看已送單</option>' +
+          '<option value="已完成">只看已完成</option>' +
+        '</select></div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
         '<button class="btn btn-primary" id="queryBtn" style="flex:1;min-width:120px;">查詢</button>' +
         '<button class="btn btn-ghost" id="exportBtn" style="flex:1;min-width:120px;">⬇️ 下載 CSV</button>' +
       '</div>' +
     '</div>' +
-    '<div id="listArea"></div>';
+    '<div id="historyList"></div>';
 
-  document.getElementById('logoutBtn').addEventListener('click', logout);
-  document.getElementById('queryBtn').addEventListener('click', loadOrders);
+  document.getElementById('queryBtn').addEventListener('click', loadHistory);
   document.getElementById('exportBtn').addEventListener('click', exportCsv);
 }
 
-function loadOrders() {
-  const listArea = document.getElementById('listArea');
+function loadHistory() {
+  const list = document.getElementById('historyList');
   const dateFrom = document.getElementById('dateFrom').value;
   const dateTo = document.getElementById('dateTo').value;
-  listArea.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
+  const statusVal = document.getElementById('statusFilter').value;
+  list.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
 
-  apiPost('vendorOrders', { password: PASSWORD, dateFrom: dateFrom, dateTo: dateTo }).then(function (res) {
-    SESSIONS = res.sessions || [];
-    renderList();
+  apiPost('vendorOrders', {
+    password: PASSWORD, dateFrom: dateFrom, dateTo: dateTo,
+    status: statusVal ? [statusVal] : undefined
+  }).then(function (res) {
+    HISTORY_SESSIONS = res.sessions || [];
+    renderOrderCards(list, HISTORY_SESSIONS, '這段期間沒有符合條件的團', loadHistory);
   }).catch(function (err) {
-    listArea.innerHTML = '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
+    list.innerHTML = '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
   });
 }
 
-function renderList() {
-  const listArea = document.getElementById('listArea');
-  if (!SESSIONS.length) {
-    listArea.innerHTML = '<div class="empty">' + PAW_MARK + '<div>這段期間沒有已送單的團</div></div>';
+/* ---------- 兩頁共用的訂單卡片（依品項彙總，不含跟團者姓名） ---------- */
+
+function renderOrderCards(container, sessions, emptyText, onReload) {
+  if (!sessions.length) {
+    container.innerHTML = '<div class="empty">' + PAW_MARK + '<div>' + escapeHtml(emptyText) + '</div></div>';
     return;
   }
-  listArea.innerHTML = SESSIONS.map(function (s, i) {
+  container.innerHTML = sessions.map(function (s) {
     const done = s.status === '已完成';
     const badge = done ? '<span class="badge done">已完成</span>' : '<span class="badge warn">已送單</span>';
     return (
@@ -145,20 +216,20 @@ function renderList() {
           }).join('') +
         '</dl>' +
         '<div class="cart-total" style="margin-bottom:' + (done ? '0' : '10px') + ';"><span>總計</span><span class="amount">$' + s.total + '</span></div>' +
-        (done ? '' : '<button type="button" class="btn btn-ghost btn-block btn-sm" data-complete="' + escapeHtml(s.id) + '">✅ 店家已出餐，標記完成</button>') +
+        (done ? '' : '<button type="button" class="btn btn-ghost btn-block btn-sm" data-complete="' + escapeHtml(s.id) + '">📦 出餐完成後，點我標記</button>') +
       '</div>'
     );
   }).join('');
 
-  listArea.querySelectorAll('[data-complete]').forEach(function (btn) {
+  container.querySelectorAll('[data-complete]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       if (!confirm('確定要標記這團已完成嗎？')) return;
       btn.disabled = true; btn.innerHTML = '<span class="spin"></span> 標記中…';
       apiPost('vendorComplete', { password: PASSWORD, sessionId: btn.dataset.complete }).then(function () {
-        loadOrders();
+        onReload();
       }).catch(function (err) {
         alert(err.message || String(err));
-        btn.disabled = false; btn.textContent = '✅ 店家已出餐，標記完成';
+        btn.disabled = false; btn.textContent = '📦 出餐完成後，點我標記';
       });
     });
   });
@@ -168,7 +239,7 @@ function fmtDate(s) {
   return String(s || '').replace(/-/g, '/');
 }
 
-/* ---------- 匯出 CSV（品項彙總，不含跟團者姓名） ---------- */
+/* ---------- 匯出 CSV（依日期查詢那頁的資料，品項彙總，不含跟團者姓名） ---------- */
 
 function csvCell(v) {
   const s = String(v == null ? '' : v);
@@ -176,10 +247,10 @@ function csvCell(v) {
 }
 
 function exportCsv() {
-  if (!SESSIONS.length) { alert('目前沒有資料可以匯出，先查詢一次看看。'); return; }
+  if (!HISTORY_SESSIONS.length) { alert('目前沒有資料可以匯出，先查詢一次看看。'); return; }
   const header = ['揪團編號', '預訂日期', '公司／主揪', '取餐方式', '狀態', '品項名稱', '規格', '數量', '小計'];
   const rows = [header];
-  SESSIONS.forEach(function (s) {
+  HISTORY_SESSIONS.forEach(function (s) {
     s.items.forEach(function (it) {
       const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
       rows.push([s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.fulfillment, s.status, it.itemName, specs, it.qty, it.subtotal]);

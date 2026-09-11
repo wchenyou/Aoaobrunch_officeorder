@@ -442,6 +442,11 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
   cursor: zoom-out;
 }
 .lightbox img {
+  /* flex 子項預設 min-width:auto 會用「圖片原始寬度」蓋掉 max-width，
+     螢幕比圖片窄的時候（我們的菜單圖是 1400px 寬）就會左右溢出版面，
+     一定要明確歸零才會真的照 max-width 縮。 */
+  min-width: 0;
+  min-height: 0;
   max-width: 100%;
   max-height: 100%;
   border-radius: var(--r-md);
@@ -464,6 +469,40 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 }
 .lightbox-close:hover { background: rgba(255, 255, 255, .3); }
 body.lightbox-open { overflow: hidden; }
+
+/* ---------- 通用浮窗（「你開過的團」這類小面板用） ---------- */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+  background: rgba(20, 14, 10, .55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 64px 16px 40px;
+  overflow-y: auto;
+}
+.modal-card-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+.modal-close {
+  position: absolute;
+  top: -14px;
+  right: -8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: none;
+  background: var(--ink);
+  color: var(--cream);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
 
 .optgroup { margin-top: 14px; }
 .optgroup-label {

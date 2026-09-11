@@ -148,7 +148,43 @@ function openLightbox(src, alt) {
 function closeLightbox() {
   const box = document.querySelector('[data-lightbox]');
   if (box) box.remove();
-  document.body.classList.remove('lightbox-open');
+  if (!document.querySelector('[data-modal]')) document.body.classList.remove('lightbox-open');
+}
+
+/* ==========================================================================
+   通用浮窗——跟 lightbox 是同一套外殼（深色背景蓋住全螢幕、按 Esc 或點
+   背景關掉），差別是裡面放的是一張卡片，不是一張圖。「你開過的團」這類
+   小面板用這個，不會把頁面其他內容往下擠。
+   ========================================================================== */
+
+document.addEventListener('click', function (e) {
+  if (e.target.closest('[data-modal-close]') || e.target.matches('[data-modal]')) closeModal();
+});
+
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') { closeLightbox(); closeModal(); }
+});
+
+/** innerHtml 是放進浮窗卡片區的內容，回傳那個容器 DOM 節點方便呼叫端接著綁事件 */
+function openModal(innerHtml) {
+  closeModal();
+  const box = document.createElement('div');
+  box.className = 'modal-overlay';
+  box.setAttribute('data-modal', '');
+  box.innerHTML =
+    '<div class="modal-card-wrap">' +
+      '<button type="button" class="modal-close" data-modal-close aria-label="關閉">✕</button>' +
+      innerHtml +
+    '</div>';
+  document.body.appendChild(box);
+  document.body.classList.add('lightbox-open');
+  return box.querySelector('.modal-card-wrap');
+}
+
+function closeModal() {
+  const box = document.querySelector('[data-modal]');
+  if (box) box.remove();
+  if (!document.querySelector('[data-lightbox]')) document.body.classList.remove('lightbox-open');
 }
 
 /** 整頁的狀態訊息（找不到揪團、載入失敗等） */

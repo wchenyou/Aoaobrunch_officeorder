@@ -492,18 +492,21 @@ async function vendorLogin(p: any) {
   return { ok: true };
 }
 
-/** 依日期區間列出已送單／已完成的揪團，每團的訂單依品項彙總（不含跟團者姓名） */
+/** 依日期區間（可省略＝不限日期）＋狀態列出揪團，每團的訂單依品項彙總（不含跟團者姓名）
+ *  p.status 沒給就預設「已送單、已完成」都要，給了就照給的篩——「待處理」頁只要已送單的，
+ *  不用選日期；「依日期查詢」頁日期＋狀態都可以自己選。 */
 async function vendorOrders(p: any) {
   await checkVendorPassword(String(p.password || ''));
   const from = p.dateFrom || '1900-01-01';
   const to = p.dateTo || '2999-12-31';
+  const statusFilter: string[] = Array.isArray(p.status) && p.status.length ? p.status : ['已送單', '已完成'];
 
   const { data: sessionsData, error: sErr } = await supabase
     .from('sessions')
     .select('*')
     .gte('delivery_date', from)
     .lte('delivery_date', to)
-    .in('status', ['已送單', '已完成'])
+    .in('status', statusFilter)
     .order('delivery_date', { ascending: false });
   if (sErr) throw new Error(sErr.message);
 
