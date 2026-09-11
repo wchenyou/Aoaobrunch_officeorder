@@ -228,11 +228,22 @@ function findSession_(sessionId) {
 function rowToSessionObj_(r) {
   return {
     id: r[0], organizer: r[1], organizerEmail: r[2], createdAt: r[3],
-    deadline: r[4], fulfillment: r[5], deliveryDate: r[6], deliveryTime: r[7],
+    deadline: r[4], fulfillment: r[5], deliveryDate: r[6], deliveryTime: formatTimeOfDay_(r[7]),
     address: r[8], needUtensils: r[9], company: r[10], taxId: r[11],
-    contactName: r[12], contactPhone: r[13], contactAvailableTime: r[14],
+    contactName: r[12], contactPhone: r[13], contactAvailableTime: formatTimeOfDay_(r[14]),
     typhoonCancel: r[15], note: r[16], status: r[17], token: r[18]
   };
+}
+
+/**
+ * 「期望送達時間」「方便接聽電話時間」是自由輸入的文字，但如果剛好長得像時間
+ * （例如「12:30」），Google 試算表會自動把那個儲存格判斷成時間格式，
+ * getDataRange().getValues() 讀回來就不是字串而是 Date（序列值 1899-12-30 起算）。
+ * 這裡統一轉回 HH:mm 文字，避免前端顯示出 1899-12-30T04:30:00.000Z 這種內部值。
+ */
+function formatTimeOfDay_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, 'Asia/Taipei', 'HH:mm');
+  return v || '';
 }
 
 function getOrdersForSession_(sessionId) {
