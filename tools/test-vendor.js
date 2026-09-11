@@ -54,8 +54,13 @@ const SUPABASE_KEY = 'sb_publishable_-sPP27i_r99uhzwS9W2Z-g_yGwgS8xD';
   console.log('待處理頁顯示品項名稱 →', pendingText.includes('美式厚牛漢堡套餐') ? 'OK' : '✗');
 
   // ---------- 4. 依日期查詢頁：切過去、查詢、狀態篩選、CSV 下載 ----------
+  // 預設日期是「今天到今天」，測試團的預訂日期是 3 天後，要自己把
+  // 區間拉大才查得到——這也順便驗證了「預設不自動查」這個行為。
   await p1.click('label[for="vtabHistory"]');
   await p1.waitForSelector('#dateFrom', { timeout: 10000 });
+  const emptyHint = await p1.locator('#historyList').innerText();
+  console.log('切到依日期查詢頁，預設不自動查詢 →', emptyHint.includes('選好日期範圍後按「查詢」') ? 'OK' : '✗');
+  await p1.fill('#dateTo', created.dateStr);
   await p1.selectOption('#statusFilter', 'false'); // 尚未完成
   await p1.click('#queryBtn');
   await p1.waitForSelector('#historyList .card', { timeout: 10000 });

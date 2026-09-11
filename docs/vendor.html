@@ -35,7 +35,6 @@ let swRegistration = null;
 
 /* 依日期查詢那頁存最後一次查到的結果，CSV 匯出要用 */
 let HISTORY_SESSIONS = [];
-let historyLoadedOnce = false;
 
 if (PASSWORD) {
   tryLoad(PASSWORD, true);
@@ -83,7 +82,6 @@ function tryLoad(pw, silent) {
 function logout() {
   try { localStorage.removeItem(PW_KEY); } catch (e) { /* 略過 */ }
   PASSWORD = '';
-  historyLoadedOnce = false;
   const actions = document.getElementById('topbarActions');
   if (actions) actions.innerHTML = ''; // 回到登入畫面，標頭右上角的登出/通知按鈕也一起收掉
   renderLogin();
@@ -240,7 +238,8 @@ function showPending() {
 function showHistory() {
   document.getElementById('pendingPanel').hidden = true;
   document.getElementById('historyPanel').hidden = false;
-  if (!historyLoadedOnce) { historyLoadedOnce = true; loadHistory(); }
+  /* 故意不要一切過去就自動查詢——預設日期只有「今天」這一天，大部分
+     時候使用者是想改期間再查，先幫他查一次今天的資料沒什麼意義。 */
 }
 
 /* ---------- 待處理訂單：已送單、還沒標記完成的團——不用選日期，
@@ -277,8 +276,8 @@ function renderHistoryShell() {
     '<div class="card">' +
       '<div class="card-head"><span class="dot"></span><h2>篩選條件</h2></div>' +
       '<div class="grid-2">' +
-        '<div class="field"><label for="dateFrom">預訂日期從</label><input type="date" id="dateFrom" value="' + todayStr(-30) + '"></div>' +
-        '<div class="field"><label for="dateTo">到</label><input type="date" id="dateTo" value="' + todayStr(30) + '"></div>' +
+        '<div class="field"><label for="dateFrom">預訂日期從</label><input type="date" id="dateFrom" value="' + todayStr(0) + '"></div>' +
+        '<div class="field"><label for="dateTo">到</label><input type="date" id="dateTo" value="' + todayStr(0) + '"></div>' +
       '</div>' +
       '<div class="field"><label for="statusFilter">完成狀態</label>' +
         '<select id="statusFilter">' +
@@ -292,7 +291,7 @@ function renderHistoryShell() {
       '</div>' +
     '</div>' +
     '<div class="section-head"><h2>查詢結果</h2></div>' +
-    '<div id="historyList"></div>';
+    '<div id="historyList"><div class="empty">' + PAW_MARK + '<div>選好日期範圍後按「查詢」</div></div></div>';
 
   document.getElementById('queryBtn').addEventListener('click', loadHistory);
   document.getElementById('exportBtn').addEventListener('click', exportCsv);
