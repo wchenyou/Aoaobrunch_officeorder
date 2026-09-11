@@ -28,6 +28,11 @@ const PW_KEY = 'aoao_vendor_pw';
 let PASSWORD = '';
 try { PASSWORD = localStorage.getItem(PW_KEY) || ''; } catch (e) { /* 無痕模式 */ }
 
+/* 新訂單瀏覽器推播（Web Push）用的公鑰，登入時後端會一起回傳；
+   沒設定的話是空字串，畫面上就不會出現「開啟通知」按鈕。 */
+let VAPID_PUBLIC_KEY = '';
+let swRegistration = null;
+
 /* 依日期查詢那頁存最後一次查到的結果，CSV 匯出要用 */
 let HISTORY_SESSIONS = [];
 let historyLoadedOnce = false;
@@ -63,8 +68,9 @@ function doLogin() {
 
 /** silent=true 是「這台裝置記住的密碼，先默默試試看」，錯了就默默退回登入畫面，不嚇到人 */
 function tryLoad(pw, silent) {
-  apiPost('vendorLogin', { password: pw }).then(function () {
+  apiPost('vendorLogin', { password: pw }).then(function (res) {
     PASSWORD = pw;
+    VAPID_PUBLIC_KEY = res.vapidPublicKey || '';
     try { localStorage.setItem(PW_KEY, pw); } catch (e) { /* 略過 */ }
     renderShell();
   }).catch(function (err) {
@@ -96,8 +102,12 @@ function renderShell() {
         '<input type="radio" name="vtab" id="vtabPending" checked><label for="vtabPending">📥 待處理訂單</label>' +
         '<input type="radio" name="vtab" id="vtabHistory"><label for="vtabHistory">🔍 依日期查詢</label>' +
       '</div>' +
-      '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
+        '<button class="btn btn-ghost btn-sm" id="pushToggleBtn" hidden></button>' +
+        '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button>' +
+      '</div>' +
     '</div>' +
+    '<div class="tiny" id="pushHint"></div>' +
     '<div id="pendingPanel"></div>' +
     '<div id="historyPanel" hidden></div>';
 
@@ -108,6 +118,106 @@ function renderShell() {
   renderPendingShell();
   renderHistoryShell();
   loadPending();
+  initPushUI();
+}
+
+/* ---------- 新訂單瀏覽器推播（Web Push） ----------
+   按鈕只有三種狀態：沒開通知／通知已開啟／被瀏覽器封鎖。請求通知權限
+   一定要是使用者自己按按鈕才能觸發（瀏覽器規定，也比較不會被當成
+   騷擾式彈窗），所以 initPushUI() 只負責畫出目前狀態，不會自動跳出
+   權限請求視窗。 */
+
+function initPushUI() {
+  const btn = document.getElementById('pushToggleBtn');
+  const hint = document.getElementById('pushHint');
+  if (!btn) return;
+
+  if (!VAPID_PUBLIC_KEY) return; // 後端還沒設定 VAPID 金鑰，功能還沒開放，按鈕就不出現
+
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+    hint.textContent = '📱 這個瀏覽器目前不支援通知（iPhone 的話，要先把這個網址加到主畫面才能用）。';
+    return;
+  }
+
+  navigator.serviceWorker.register('sw.js').then(function (reg) {
+    swRegistration = reg;
+    return reg.pushManager.getSubscription();
+  }).then(function (sub) {
+    paintPushBtn(!!sub);
+  }).catch(function (err) {
+    console.log('推播初始化失敗：', err);
+    hint.textContent = '這台裝置目前沒辦法開啟通知。';
+  });
+}
+
+function paintPushBtn(subscribed) {
+  const btn = document.getElementById('pushToggleBtn');
+  btn.hidden = false;
+  btn.disabled = false;
+  btn.style.borderColor = '';
+  btn.style.color = '';
+
+  if (Notification.permission === 'denied') {
+    btn.textContent = '🔕 通知被瀏覽器封鎖';
+    btn.disabled = true;
+    btn.title = '要重新開啟的話，去瀏覽器的「網站設定」把這個網址的通知權限打開';
+    return;
+  }
+  if (subscribed) {
+    btn.textContent = '🔔 通知已開啟';
+    btn.style.borderColor = 'var(--leaf)';
+    btn.style.color = 'var(--leaf)';
+    btn.title = '點一下可以關閉';
+    btn.onclick = disablePush;
+  } else {
+    btn.textContent = '🔔 開啟新訂單通知';
+    btn.title = '';
+    btn.onclick = enablePush;
+  }
+}
+
+function enablePush() {
+  const btn = document.getElementById('pushToggleBtn');
+  btn.disabled = true; btn.textContent = '開啟中…';
+  swRegistration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  }).then(function (sub) {
+    return apiPost('vendorSubscribePush', { password: PASSWORD, subscription: sub.toJSON() });
+  }).then(function () {
+    paintPushBtn(true);
+  }).catch(function (err) {
+    alert('開啟通知失敗：' + (err.message || String(err)));
+    paintPushBtn(false);
+  });
+}
+
+function disablePush() {
+  const btn = document.getElementById('pushToggleBtn');
+  btn.disabled = true; btn.textContent = '關閉中…';
+  swRegistration.pushManager.getSubscription().then(function (sub) {
+    if (!sub) { paintPushBtn(false); return; }
+    const endpoint = sub.endpoint;
+    return sub.unsubscribe().then(function () {
+      return apiPost('vendorUnsubscribePush', { password: PASSWORD, endpoint: endpoint });
+    });
+  }).then(function () {
+    paintPushBtn(false);
+  }).catch(function (err) {
+    alert('關閉通知失敗：' + (err.message || String(err)));
+    paintPushBtn(true);
+  });
+}
+
+/** VAPID 公鑰是 base64url 字串，瀏覽器的 subscribe() 要吃 Uint8Array，中間要轉一手。
+ *  這是 Web Push 的標準轉換寫法，網路上到處找得到同一份。 */
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
 }
 
 function showPending() {
