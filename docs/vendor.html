@@ -91,13 +91,12 @@ function todayStr(offsetDays) {
 function renderShell() {
   page.innerHTML =
     '<h1>店家後台 🐾</h1>' +
-    '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>選單</h2><span class="spacer"></span>' +
-        '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button></div>' +
+    '<div class="vendor-topbar">' +
       '<div class="seg">' +
         '<input type="radio" name="vtab" id="vtabPending" checked><label for="vtabPending">📥 待處理訂單</label>' +
         '<input type="radio" name="vtab" id="vtabHistory"><label for="vtabHistory">🔍 依日期查詢</label>' +
       '</div>' +
+      '<button class="btn btn-ghost btn-sm" id="logoutBtn">登出</button>' +
     '</div>' +
     '<div id="pendingPanel"></div>' +
     '<div id="historyPanel" hidden></div>';
@@ -127,10 +126,11 @@ function showHistory() {
 function renderPendingShell() {
   const el = document.getElementById('pendingPanel');
   el.innerHTML =
-    '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>待處理訂單</h2><span class="spacer"></span>' +
-        '<button class="btn btn-ghost btn-sm" id="pendingRefreshBtn">重新整理</button></div>' +
-      '<div class="tiny">已經送單、但還沒標記完成的團，不限日期，全部都在這裡。</div>' +
+    '<div class="section-head">' +
+      '<h2>📥 待處理訂單</h2>' +
+      '<span class="tiny">已經送單、但還沒標記完成的團，不限日期，全部都在這裡</span>' +
+      '<span class="spacer"></span>' +
+      '<button class="btn btn-ghost btn-sm" id="pendingRefreshBtn">重新整理</button>' +
     '</div>' +
     '<div id="pendingList"></div>';
   document.getElementById('pendingRefreshBtn').addEventListener('click', loadPending);
@@ -152,7 +152,7 @@ function renderHistoryShell() {
   const el = document.getElementById('historyPanel');
   el.innerHTML =
     '<div class="card">' +
-      '<div class="card-head"><span class="dot"></span><h2>依日期查詢</h2></div>' +
+      '<div class="card-head"><span class="dot"></span><h2>篩選條件</h2></div>' +
       '<div class="grid-2">' +
         '<div class="field"><label for="dateFrom">預訂日期從</label><input type="date" id="dateFrom" value="' + todayStr(-30) + '"></div>' +
         '<div class="field"><label for="dateTo">到</label><input type="date" id="dateTo" value="' + todayStr(30) + '"></div>' +
@@ -168,6 +168,7 @@ function renderHistoryShell() {
         '<button class="btn btn-ghost" id="exportBtn" style="flex:1;min-width:120px;">⬇️ 下載 CSV</button>' +
       '</div>' +
     '</div>' +
+    '<div class="section-head"><h2>查詢結果</h2></div>' +
     '<div id="historyList"></div>';
 
   document.getElementById('queryBtn').addEventListener('click', loadHistory);

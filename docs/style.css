@@ -169,6 +169,28 @@ p:last-child { margin-bottom: 0; }
 
 .card-head .spacer { margin-left: auto; }
 
+/* ---------- 店家後台：分頁列、區塊標題（不是卡片，跟內容的卡片區分開來） ---------- */
+
+.vendor-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 24px 0 12px;
+}
+.section-head h2 { margin: 0; font-size: 15px; }
+.section-head .spacer { margin-left: auto; }
+.section-head:first-child { margin-top: 0; }
+
 /* ---------- 提示區塊 ---------- */
 
 .notice {
