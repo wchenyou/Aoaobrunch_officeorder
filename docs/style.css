@@ -247,6 +247,7 @@ input:focus, textarea:focus {
 }
 input::placeholder, textarea::placeholder { color: var(--ink-soft); }
 textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
+input:disabled, textarea:disabled { background: var(--surface-alt); color: var(--ink-mid); cursor: not-allowed; }
 
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 480px) { .grid-2 { grid-template-columns: 1fr; } }
@@ -435,6 +436,11 @@ textarea { resize: vertical; min-height: 62px; line-height: 1.6; }
 
 /* 有 data-zoomable 的圖都能點擊放大 */
 [data-zoomable] { cursor: zoom-in; }
+
+/* 訂單已經送出過、還沒按「編輯我的餐點」之前，整塊菜單是唯讀的：
+   點下去沒反應，用 pointer-events 直接擋掉，不用一個個元件另外判斷；
+   調暗一點也讓人一眼看出「現在不能點」。 */
+.menu-locked { opacity: .55; pointer-events: none; }
 
 /* 「查看菜單」「你開過的團」這類次要動作固定懸浮在右下角，手機電腦都一樣，
    不用捲到頂端才找得到，也不會佔用表單的版面。 */

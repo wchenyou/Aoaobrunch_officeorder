@@ -29,6 +29,10 @@ const DRAFT = loadCartDraft(SESSION_ID);
 if (!EDIT_CODE && DRAFT && DRAFT.orderCode) EDIT_CODE = DRAFT.orderCode;
 
 let MENU = [], SESSION = null, SETTINGS = {}, cart = [];
+/* 已經送出過的訂單預設是鎖起來的唯讀畫面，要按「編輯我的餐點」才能真的
+   改品項；ORDER_LOCKED 控制這個狀態，LAST_EXISTING 記著伺服器上目前
+   的版本，取消編輯時拿來還原，不會留下改一半又反悔的髒資料。 */
+let ORDER_LOCKED = false, LAST_EXISTING = [];
 const page = document.getElementById('page');
 document.getElementById('top').innerHTML = renderTopbar('辦公室團購');
 
@@ -72,6 +76,7 @@ function render(existing) {
   }
 
   html += '<div id="topNotice"></div>';
+  html += '<div id="lockBanner"></div>';
   html += '<div class="fab-stack has-cartbar">' + menuButton() + '</div>';
 
   const cats = [];
@@ -88,7 +93,8 @@ function render(existing) {
       '<aside class="col-side">' +
         '<div class="card" id="cartCard">' +
           '<div class="card-head"><span class="dot"></span><h2>你點的東西</h2><span class="spacer"></span>' +
-            '<span class="tiny" id="cartHint"></span></div>' +
+            '<span class="tiny" id="cartHint"></span>' +
+            '<button type="button" class="btn btn-ghost btn-sm" id="editToggleBtn" hidden></button></div>' +
           '<div id="cartList"></div>' +
         '</div>' +
         '<div class="card">' +
@@ -121,21 +127,22 @@ function render(existing) {
   });
 
   if (EDIT_CODE && existing.length) {
-    /* 已經送出過：以伺服器上的內容為準 */
+    /* 已經送出過：以伺服器上的內容為準。預設鎖起來當唯讀畫面看，
+       不能手滑改到或刪到，要按「編輯我的餐點」才能真的改。 */
+    LAST_EXISTING = existing;
+    ORDER_LOCKED = true;
     document.getElementById('name').value = existing[0].name;
     document.getElementById('globalNote').value = existing[0].note || '';
     document.getElementById('notifyEmail').value = existing[0].notifyEmail || '';
     cart = existing.map(function (o) {
       return { code: o.itemCode, name: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: Number(o.qty), price: Number(o.price) };
     });
-    setSubmit('更新訂單', null);
-    document.getElementById('cartHint').textContent = '修改模式';
     if (!params.get('edit')) {
       /* 這筆是靠這台裝置的記憶找回來的，不是從網址帶進來的。
          同事共用一台電腦或平板時可能不是同一個人，所以留一個逃生門。 */
       document.getElementById('topNotice').innerHTML =
         '<div class="notice notice-good"><span class="ico">📝</span><div>' +
-          '找到<strong>' + escapeHtml(existing[0].name) + '</strong>先前送出的訂單，直接改就好，改完按「更新訂單」。' +
+          '找到<strong>' + escapeHtml(existing[0].name) + '</strong>先前送出的訂單。' +
           '<div style="margin-top:8px;"><button type="button" class="btn btn-ghost btn-sm" id="notMeBtn">不是我的，我要重點一筆</button></div>' +
         '</div></div>';
       document.getElementById('notMeBtn').addEventListener('click', function () {
@@ -164,8 +171,11 @@ function render(existing) {
     document.getElementById(id).addEventListener('input', persistDraft);
   });
 
-  renderCart();
-  submitBtns().forEach(function (b) { b.addEventListener('click', submit); });
+  updateLockUI();
+  document.getElementById('editToggleBtn').addEventListener('click', function () {
+    if (ORDER_LOCKED) enterEditMode(); else cancelEditMode();
+  });
+  submitBtns().forEach(function (b) { b.addEventListener('click', onSubmitClick); });
   setInterval(tickCountdown, 30000);
 }
 
@@ -186,6 +196,86 @@ function setSubmit(label, disabled) {
     if (label !== null) b.innerHTML = label;
     if (disabled !== null) b.disabled = disabled;
   });
+}
+
+/* 手機浮動列跟桌機側欄共用同一顆「送出/確認」按鈕，鎖著的時候按下去
+   只是解鎖進入編輯模式，不會真的送出什麼。 */
+function onSubmitClick() {
+  if (ORDER_LOCKED) { enterEditMode(); return; }
+  submit();
+}
+
+function enterEditMode() {
+  ORDER_LOCKED = false;
+  updateLockUI();
+}
+
+/** 取消編輯：把姓名、備註、通知信箱、購物車全部還原成伺服器上目前的版本，
+    不留下改一半又反悔的髒資料，重新鎖回唯讀畫面。 */
+function cancelEditMode() {
+  ORDER_LOCKED = true;
+  const first = LAST_EXISTING[0] || {};
+  document.getElementById('name').value = first.name || '';
+  document.getElementById('globalNote').value = first.note || '';
+  document.getElementById('notifyEmail').value = first.notifyEmail || '';
+  cart = LAST_EXISTING.map(function (o) {
+    return { code: o.itemCode, name: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: Number(o.qty), price: Number(o.price) };
+  });
+  updateLockUI();
+}
+
+/** 把目前購物車 + 姓名/備註/通知信箱包成跟 existingOrder 一樣的形狀，
+    送出成功後拿來當「伺服器上目前版本」的快照（後端不會把存好的品項
+    整份回傳，只會回 orderCode）。 */
+function snapshotFromCart() {
+  const name = document.getElementById('name').value.trim();
+  const note = document.getElementById('globalNote').value.trim();
+  const notifyEmail = document.getElementById('notifyEmail').value.trim();
+  return cart.map(function (l) {
+    return { itemCode: l.code, itemName: l.name, size: l.size, opt1: l.opt1, opt2: l.opt2, qty: l.qty, price: l.price, name: name, note: note, notifyEmail: notifyEmail };
+  });
+}
+
+/** 依 ORDER_LOCKED／是否曾經送出過（EDIT_CODE）決定：
+    - 鎖住（已送出、唯讀）：菜單整塊變成不能點，購物車不顯示 × ，
+      按鈕變成「編輯我的餐點」。
+    - 解鎖但曾經送出過（正在改）：菜單可以點、購物車有 × ，
+      按鈕變成「確認修改」，旁邊多一顆「取消修改」。
+    - 從來沒送出過（第一次點餐）：完全不鎖，按鈕是「送出訂單」。 */
+function updateLockUI() {
+  const menuArea = document.getElementById('menuArea');
+  const lockBanner = document.getElementById('lockBanner');
+  const editBtn = document.getElementById('editToggleBtn');
+  const cartHint = document.getElementById('cartHint');
+  if (!menuArea || !editBtn) return;
+
+  if (ORDER_LOCKED) {
+    menuArea.classList.add('menu-locked');
+    lockBanner.innerHTML = notice('info', '🔒', '這是你已經送出的訂單，目前是唯讀畫面。想改品項的話，先按「編輯我的餐點」。');
+    editBtn.hidden = false;
+    editBtn.textContent = '✏️ 編輯我的餐點';
+    cartHint.textContent = '已送出';
+    setSubmit('✏️ 編輯我的餐點', false);
+  } else if (EDIT_CODE) {
+    menuArea.classList.remove('menu-locked');
+    lockBanner.innerHTML = '';
+    editBtn.hidden = false;
+    editBtn.textContent = '↩️ 取消修改';
+    cartHint.textContent = '修改模式';
+    setSubmit('確認修改', false);
+  } else {
+    menuArea.classList.remove('menu-locked');
+    lockBanner.innerHTML = '';
+    editBtn.hidden = true;
+    setSubmit('送出訂單', false);
+  }
+  /* 姓名/備註/通知信箱也算這筆訂單的一部分，鎖著的時候一起唯讀，
+     不然按鈕顯示「已送出」，姓名欄卻還能偷偷改，會對不起來。 */
+  ['name', 'globalNote', 'notifyEmail'].forEach(function (id) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = ORDER_LOCKED;
+  });
+  renderCart();
 }
 
 function tickCountdown() {
@@ -340,7 +430,7 @@ function renderCart() {
         ' <span class="num">×' + l.qty + '</span></div>' +
         (spec ? '<div class="cart-line-spec">' + escapeHtml(spec) + '</div>' : '') + '</div>' +
         '<div class="cart-line-price">$' + (l.price * l.qty) + '</div>' +
-        '<button class="cart-x" data-rm="' + i + '" aria-label="移除">×</button></div>';
+        (ORDER_LOCKED ? '' : '<button class="cart-x" data-rm="' + i + '" aria-label="移除">×</button>') + '</div>';
     }).join('');
     list.querySelectorAll('[data-rm]').forEach(function (b) {
       b.addEventListener('click', function () { cart.splice(Number(b.dataset.rm), 1); renderCart(); });
@@ -416,13 +506,15 @@ function submit() {
           : '') +
         '<button class="btn btn-danger btn-block btn-sm" style="margin-top:12px;" id="cancelBtn">取消這筆訂單</button>' +
       '</div>';
-    setSubmit('更新訂單', false);
-    document.getElementById('cartHint').textContent = '修改模式';
+    /* 存成功了，重新鎖回唯讀畫面，避免存完又手滑改到、卻忘記再按一次確認。 */
+    ORDER_LOCKED = true;
+    LAST_EXISTING = snapshotFromCart();
+    updateLockUI();
     document.getElementById('cancelBtn').addEventListener('click', cancelOrder);
     msgArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }).catch(function (err) {
     msgArea.innerHTML = notice('warn', '⚠️', err.message || String(err));
-    setSubmit(EDIT_CODE ? '更新訂單' : '送出訂單', false);
+    updateLockUI();
   });
 }
 
@@ -435,11 +527,9 @@ function cancelOrder() {
     clearCartDraft(SESSION_ID);
     /* 取消後留在點餐頁，只是購物車清空——不要整頁跳走，同事想重點的話直接選就好。 */
     EDIT_CODE = '';
+    ORDER_LOCKED = false;
     cart = [];
-    renderCart();
-    setSubmit('送出訂單', false);
-    const cartHint = document.getElementById('cartHint');
-    if (cartHint) cartHint.textContent = '';
+    updateLockUI();
     const topNotice = document.getElementById('topNotice');
     if (topNotice) topNotice.innerHTML = '';
     document.getElementById('msgArea').innerHTML = notice('good', '✅', '訂單已取消，購物車也清空了。' +

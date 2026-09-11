@@ -129,6 +129,9 @@ function watch(pageObj, label) {
   log('修改模式帶回姓名 =', preName, preName === '小明（4樓）' ? 'OK' : '✗');
   log('修改模式帶回金額 =', preTotal, preTotal === '446' ? 'OK' : '✗ 應為 446');
   await p4.screenshot({ path: SHOTS + '/shot-8-edit.png', fullPage: true });
+  // 送出過的訂單預設鎖住唯讀，要先按「編輯我的餐點」才能改
+  await p4.click('.cartbar [data-submit]');
+  await p4.waitForSelector('[data-rm="1"]', { timeout: 8000 });
   // 移除一項後更新
   await p4.click('[data-rm="1"]');
   await p4.waitForTimeout(200);

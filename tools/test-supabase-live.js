@@ -53,10 +53,12 @@ const BASE = process.env.BASE || 'http://localhost:8900';
   await p2.waitForSelector('#editUrl', { timeout: 15000 });
   console.log('送出訂單 → OK');
 
-  // 改單
+  // 改單：送出後預設鎖住唯讀，要先按「編輯我的餐點」才能繼續加點
+  await p2.click('.cartbar [data-submit]'); // 此時按鈕是「編輯我的餐點」
+  await p2.waitForSelector('.cart-x', { timeout: 8000 });
   await p2.click('.item[data-i="1"] .item-row');
   await p2.click('.item[data-i="1"] [data-add]');
-  await p2.click('.cartbar [data-submit]');
+  await p2.click('.cartbar [data-submit]'); // 此時按鈕是「確認修改」
   await p2.waitForTimeout(1500);
   const total1 = await p2.textContent('#barTotal');
   console.log('改單後總計 =', total1, '(188+199=387) →', total1 === '387' ? 'OK' : '✗');

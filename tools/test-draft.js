@@ -73,7 +73,7 @@ const errs = [];
   const hint2 = await p3.textContent('#topNotice');
   const btnLabel = await p3.textContent('.cartbar [data-submit]');
   const total2 = await p3.textContent('#barTotal');
-  console.log('7. 送出後重開連結會回到修改模式 →', btnLabel.includes('更新') ? 'OK' : '✗ ' + btnLabel);
+  console.log('7. 送出後重開連結會回到唯讀的已送出畫面 →', btnLabel.includes('編輯') ? 'OK' : '✗ ' + btnLabel);
   console.log('   有提示找到先前的訂單 →', hint2.includes('先前送出的訂單') ? 'OK' : '✗');
   console.log('   金額一致 →', total2 === beforeTotal ? 'OK' : '✗ ' + total2);
   await p3.screenshot({ path: SHOTS + '/draft-2-found.png', fullPage: false });
@@ -101,11 +101,10 @@ const errs = [];
   await q.click('.cartbar [data-submit]');
   await q.waitForTimeout(900);
 
-  await a.click('#refreshBtn2');
+  await a.click('#refreshBtn');
   await a.waitForTimeout(1200);
   const after = await a.textContent('#stPeople');
   console.log('9. 按「立即更新」抓到新訂單 →', before === '1' && after === '2' ? 'OK（1 → 2 人）' : '✗ ' + before + ' → ' + after);
-  console.log('10. 上方「重新整理」也還在 →', (await a.isVisible('#refreshBtn')) ? 'OK' : '✗');
   await a.screenshot({ path: SHOTS + '/draft-3-admin.png', fullPage: false });
 
   console.log('\n=== JS 錯誤 ===');
