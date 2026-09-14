@@ -259,11 +259,21 @@ function renderMyGroups() {
     return loadMyGroups().filter(function (g) { return g.organizerClosed !== true; });
   }
 
+  /* 這份清單只存在這台裝置的瀏覽器裡（localStorage），不是真的雲端
+     備份——清瀏覽器資料、換瀏覽器、換手機都會不見。真正不會不見的
+     是建團當下寄到主揪信箱的那封信，裡面有管理連結。放這行警語
+     讓主揪自己知道這個風險，不要以為這裡是可靠的紀錄。 */
+  const DEVICE_ONLY_WARNING =
+    '<div class="notice notice-warn" style="margin:10px 0 0;"><span class="ico">⚠️</span>' +
+      '<div>這份清單只存在這台裝置的瀏覽器裡，清除瀏覽資料、換瀏覽器或換手機都會不見。' +
+      '真正找得回來的是建團時寄到你信箱的那封信，裡面有管理連結，記得留著。</div></div>';
+
   function cardHtml(items) {
     if (!items.length) {
       return '<div id="myGroups"><div class="card" style="border-color:var(--peach);">' +
         '<div class="card-head"><span class="dot"></span><h2>你開過的團</h2></div>' +
         '<div class="empty">' + PAW_MARK + '<div>這台裝置還沒有記住任何團<br><span class="tiny">建好團之後會自動記住，方便你之後回來看訂單</span></div></div>' +
+        DEVICE_ONLY_WARNING +
       '</div></div>';
     }
     return '<div id="myGroups"><div class="card" style="border-color:var(--peach);">' +
@@ -286,6 +296,7 @@ function renderMyGroups() {
             '<button class="cart-x" data-forget="' + escapeHtml(g.id) + '" title="從這台裝置移除">×</button>' +
           '</div>';
         }).join('') +
+        DEVICE_ONLY_WARNING +
       '</div></div>';
   }
 
