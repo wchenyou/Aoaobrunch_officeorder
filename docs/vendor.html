@@ -245,23 +245,36 @@ function showHistory() {
 /* ---------- 待處理訂單：已送單、還沒標記完成的團——不用選日期，
    這就是店家現在該準備的東西。 ---------- */
 
+/* 兩個分頁共用同一套排序方式：依「送餐時間」（預訂日期，店家實際把
+   餐點送到訂購者手上的時間）或依「送單時間」（主揪按下送單、把這團
+   交給店家處理的時間），越早的排越上面。預設是送餐時間。 */
+function sortOptionsHtml(id, compact) {
+  return '<select id="' + id + '"' + (compact ? ' style="width:auto;min-width:112px;"' : '') + '>' +
+    '<option value="deliveryDate">依送餐時間</option>' +
+    '<option value="finalizedAt">依送單時間</option>' +
+  '</select>';
+}
+
 function renderPendingShell() {
   const el = document.getElementById('pendingPanel');
   el.innerHTML =
     '<div class="section-head">' +
       '<h2>📥 待處理訂單</h2>' +
       '<span class="spacer"></span>' +
+      sortOptionsHtml('pendingSortBy', true) +
       '<button class="btn btn-ghost btn-sm" id="pendingRefreshBtn" style="white-space:nowrap;">重新整理</button>' +
     '</div>' +
     '<div class="tiny" style="margin:-6px 0 12px;">已經送單、但還沒標記完成的團，不限日期，全部都在這裡</div>' +
     '<div id="pendingList"></div>';
   document.getElementById('pendingRefreshBtn').addEventListener('click', loadPending);
+  document.getElementById('pendingSortBy').addEventListener('change', loadPending);
 }
 
 function loadPending() {
   const list = document.getElementById('pendingList');
+  const sortBy = document.getElementById('pendingSortBy').value;
   list.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
-  apiPost('vendorOrders', { password: PASSWORD, vendorDone: false }).then(function (res) {
+  apiPost('vendorOrders', { password: PASSWORD, vendorDone: false, sortBy: sortBy }).then(function (res) {
     renderOrderCards(list, res.sessions || [], '目前沒有待處理的訂單', loadPending);
   }).catch(function (err) {
     list.innerHTML = '<div class="notice notice-warn"><span class="ico">⚠️</span><div>' + escapeHtml(err.message || String(err)) + '</div></div>';
@@ -279,12 +292,15 @@ function renderHistoryShell() {
         '<div class="field"><label for="dateFrom">預訂日期從</label><input type="date" id="dateFrom" value="' + todayStr(0) + '"></div>' +
         '<div class="field"><label for="dateTo">到</label><input type="date" id="dateTo" value="' + todayStr(0) + '"></div>' +
       '</div>' +
-      '<div class="field"><label for="statusFilter">完成狀態</label>' +
-        '<select id="statusFilter">' +
-          '<option value="">全部</option>' +
-          '<option value="false">尚未完成</option>' +
-          '<option value="true">已完成</option>' +
-        '</select></div>' +
+      '<div class="grid-2">' +
+        '<div class="field"><label for="statusFilter">完成狀態</label>' +
+          '<select id="statusFilter">' +
+            '<option value="">全部</option>' +
+            '<option value="false">尚未完成</option>' +
+            '<option value="true">已完成</option>' +
+          '</select></div>' +
+        '<div class="field"><label for="historySortBy">排序方式</label>' + sortOptionsHtml('historySortBy') + '</div>' +
+      '</div>' +
       '<div style="display:flex;gap:10px;flex-wrap:wrap;">' +
         '<button class="btn btn-primary" id="queryBtn" style="flex:1;min-width:120px;">查詢</button>' +
         '<button class="btn btn-ghost" id="exportBtn" style="flex:1;min-width:120px;">⬇️ 下載 CSV</button>' +
@@ -302,10 +318,11 @@ function loadHistory() {
   const dateFrom = document.getElementById('dateFrom').value;
   const dateTo = document.getElementById('dateTo').value;
   const statusVal = document.getElementById('statusFilter').value; // '', 'false', 'true'
+  const sortBy = document.getElementById('historySortBy').value;
   list.innerHTML = '<p class="muted"><span class="spin"></span> 載入中…</p>';
 
   apiPost('vendorOrders', {
-    password: PASSWORD, dateFrom: dateFrom, dateTo: dateTo,
+    password: PASSWORD, dateFrom: dateFrom, dateTo: dateTo, sortBy: sortBy,
     vendorDone: statusVal === '' ? undefined : (statusVal === 'true')
   }).then(function (res) {
     HISTORY_SESSIONS = res.sessions || [];
@@ -330,7 +347,8 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
         '<div class="card-head"><span class="dot"></span><h2>' + escapeHtml(fmtDate(s.deliveryDate)) + '　' + escapeHtml(s.company || s.organizer) + '</h2>' +
           '<span class="spacer"></span>' + badge + '</div>' +
         '<div class="tiny" style="margin-bottom:10px;">' + escapeHtml(s.fulfillment) + (s.fulfillment === '外送' ? '　' + escapeHtml(s.address || '') : '') +
-          '　期望送達 ' + escapeHtml(s.deliveryTime || '') + '</div>' +
+          '　期望送達 ' + escapeHtml(s.deliveryTime || '') +
+          (s.finalizedAt ? '　・　送單於 ' + escapeHtml(fmtDateTime(s.finalizedAt)) : '') + '</div>' +
         '<dl style="margin:0 0 12px;">' +
           s.items.map(function (it) {
             const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');

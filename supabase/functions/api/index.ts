@@ -123,6 +123,9 @@ function mapSessionRow(r: any) {
        自己在準備/出餐上的進度，organizerClosed 是主揪自己有沒有結案、
        要不要讓這團從首頁「你開過的團」消失，兩邊互不影響。 */
     vendorDone: !!r.vendor_done, organizerClosed: !!r.organizer_closed,
+    /* 主揪按下送單的時間，店家後台排序用（依送單時間 vs 依送餐時間）。
+       收單中的團還沒送單，這欄是 null。 */
+    finalizedAt: r.finalized_at,
   };
 }
 
@@ -421,7 +424,8 @@ async function finalizeSession(p: any) {
   const orders = await getOrdersForSession(session.id, false);
   if (!orders.length) throw new Error('目前還沒有任何訂單，無法送單');
 
-  const { error } = await supabase.from('sessions').update({ status: '已送單' }).eq('id', session.id);
+  const { error } = await supabase.from('sessions')
+    .update({ status: '已送單', finalized_at: new Date().toISOString() }).eq('id', session.id);
   if (error) throw new Error(error.message);
 
   const settings = await getSettings();
@@ -609,11 +613,16 @@ async function vendorOrders(p: any) {
   const from = p.dateFrom || '1900-01-01';
   const to = p.dateTo || '2999-12-31';
 
+  /* 排序方式：依「送餐時間」（delivery_date，預訂日期，也就是店家實際
+     把餐點送到訂購者手上的時間）或依「送單時間」（finalized_at，主揪
+     按下送單、把這團交給店家處理的時間）。預設送餐時間，兩種都是
+     越早排越上面。 */
+  const sortCol = p.sortBy === 'finalizedAt' ? 'finalized_at' : 'delivery_date';
   let q = supabase.from('sessions').select('*')
     .eq('status', '已送單')
     .gte('delivery_date', from)
     .lte('delivery_date', to)
-    .order('delivery_date', { ascending: false });
+    .order(sortCol, { ascending: true });
   if (p.vendorDone === true) q = q.eq('vendor_done', true);
   else if (p.vendorDone === false) q = q.eq('vendor_done', false);
 
@@ -636,7 +645,7 @@ async function vendorOrders(p: any) {
     out.push({
       id: s.id, company: s.company, organizer: s.organizer,
       deliveryDate: s.deliveryDate, deliveryTime: s.deliveryTime, fulfillment: s.fulfillment,
-      address: s.address, vendorDone: s.vendorDone,
+      address: s.address, vendorDone: s.vendorDone, finalizedAt: s.finalizedAt,
       items: Object.values(byKey), total,
     });
   }
