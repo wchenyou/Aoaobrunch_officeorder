@@ -356,6 +356,10 @@ function buildMenu(cats) {
   });
 }
 
+/* 「可選醬料」「可選甜度」這種標籤原本每個有規格的品項都會出現，
+   但規格本來點開來就看得到、選得到，每項都貼一次反而是雜訊。改成
+   只在 note 有特別要講的事（無咖啡因、甜度冰塊固定這種例外情況）
+   時才顯示——固定的才是真正需要先讓人知道的資訊。 */
 function tagsHtml(m) {
   const tags = [];
   if (m.note) {
@@ -363,8 +367,6 @@ function tagsHtml(m) {
       : (m.note.indexOf('固定') >= 0 ? 'tag tag-berry' : 'tag');
     tags.push('<span class="' + cls + '">' + escapeHtml(m.note) + '</span>');
   }
-  if (m.opt1Name) tags.push('<span class="tag">可選' + escapeHtml(m.opt1Name) + '</span>');
-  if (m.opt2Name) tags.push('<span class="tag">可選' + escapeHtml(m.opt2Name) + '</span>');
   if (m.category === '飲料' && !m.priceL) tags.push('<span class="tag">僅中杯</span>');
   return tags.length ? '<div class="item-tags">' + tags.join('') + '</div>' : '';
 }
