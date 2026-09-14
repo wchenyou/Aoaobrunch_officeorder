@@ -64,8 +64,11 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   const backToAdminLink = await p2.locator('a', { hasText: '回到管理頁面' }).count();
   console.log('order.html: 主揪自己的裝置看得到「回到管理頁面」 =', backToAdminLink > 0 ? 'OK' : '✗');
   await p2.locator('.item-thumb').first().click();
-  await p2.waitForTimeout(300);
-  const lbOpen = (await p2.locator('[data-lightbox] img').count()) > 0 && await p2.isVisible('[data-lightbox] img');
+  // 原本用固定 300ms 等待再看有沒有出現，遇到頁面忙的時候常常還沒
+  // 跑完就檢查、變成不穩定的假陰性——lightbox 是同步插進 DOM 的，
+  // 改成主動等它出現才是對的做法，跟這支測試檔下面「查看菜單」那段
+  // 用的是同一招。
+  const lbOpen = await p2.waitForSelector('[data-lightbox] img', { state: 'visible', timeout: 3000 }).then(() => true).catch(() => false);
   console.log('order.html: 點縮圖出現 lightbox =', lbOpen);
   const panelOpened = await p2.locator('.item.open').count();
   console.log('order.html: 點縮圖「沒有」順便展開規格面板（應該是 0） =', panelOpened);
