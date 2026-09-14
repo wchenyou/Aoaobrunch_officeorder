@@ -324,8 +324,24 @@ async function updateOrder(p: any) {
   if (Date.now() >= new Date(session.deadline).getTime()) throw new Error('已經超過收單截止時間了');
   if (!p.orderCode) throw new Error('缺少訂單編號');
 
-  await removeOrderRows(session.id, p.orderCode, false);
+  /* 原本是「先刪舊的、再寫新的」，如果新的寫失敗（例如訂單裡有品項
+     這期間被店家下架、或單純網路斷一下），舊訂單已經被刪掉、新的
+     又沒寫進去，整筆訂單就憑空消失了——這是真的會發生的資料遺失，
+     不是理論風險。改成先記住舊資料列的 id，等新的確定寫成功了，
+     再用 id 精準刪掉舊的（不是照 order_code 刪，不然會連剛寫進去的
+     新資料一起刪掉）。萬一刪舊的這步失敗，最壞情況是舊資料多留了
+     一份沒清掉，而不是憑空消失，風險方向完全不同。 */
+  const { data: oldRows, error: oldErr } = await supabase.from('orders')
+    .select('id').eq('session_id', session.id).eq('order_code', p.orderCode);
+  if (oldErr) throw new Error(oldErr.message);
+  const oldIds = (oldRows || []).map((r: any) => r.id);
+
   const result = await submitOrderCore(p, p.orderCode, '更新');
+
+  if (oldIds.length) {
+    const { error: delErr } = await supabase.from('orders').delete().in('id', oldIds);
+    if (delErr) throw new Error(delErr.message);
+  }
   return { ok: true, orderCode: result.orderCode, message: '訂單已更新' };
 }
 
