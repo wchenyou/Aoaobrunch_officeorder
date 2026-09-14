@@ -22,7 +22,7 @@
  */
 
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
+import nodemailer from 'npm:nodemailer@6';
 import webpush from 'npm:web-push@3';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -155,7 +155,13 @@ async function getOrderByCode(sessionId: string, orderCode: string) {
   return rows.filter((o: any) => o.orderCode === orderCode);
 }
 
-/* ============ 寄信（Gmail SMTP，帳號密碼放在 settings 表） ============ */
+/* ============ 寄信（Gmail SMTP，帳號密碼放在 settings 表） ============
+   原本用 denomailer 組信，結果組出來的 MIME 結構壞掉——收件人看到的
+   不是正常的信件內容，而是整段沒被解析的原始 MIME 原始碼（Content-Type、
+   boundary 這些本來該是信件標頭的東西，整包被當成內文文字塞進信裡）。
+   2026-09-14 換成 nodemailer（Node 生態圈最成熟、最多人在用的寄信套件，
+   MIME 組信這塊踩過的坑早就被修完了），透過 Deno 的 npm: 相容層引入，
+   跟這支檔案已經在用的 npm:web-push 是同一套做法。 */
 
 async function sendEmail(settings: Record<string, string>, to: string, subject: string, body: string) {
   const gmailUser = (settings['寄件人Email'] || '').trim();
@@ -167,25 +173,23 @@ async function sendEmail(settings: Record<string, string>, to: string, subject: 
   const fromName = (settings['寄件人名稱'] || '').trim();
   const from = fromName ? `${fromName} <${gmailUser}>` : gmailUser;
 
-  const client = new SMTPClient({
-    connection: {
-      hostname: 'smtp.gmail.com',
-      port: 465,
-      tls: true,
-      auth: { username: gmailUser, password: gmailPass },
-    },
+  const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,
+    auth: { user: gmailUser, pass: gmailPass },
   });
   try {
-    await client.send({
+    await transporter.sendMail({
       from,
-      to: to.split(',').map((s) => s.trim()).filter(Boolean),
+      to: to.split(',').map((s: string) => s.trim()).filter(Boolean).join(', '),
       subject,
-      content: body,
+      text: body,
     });
   } catch (err) {
     throw new Error('寄信失敗：' + (err instanceof Error ? err.message : String(err)));
   } finally {
-    await client.close();
+    transporter.close();
   }
   return true;
 }
