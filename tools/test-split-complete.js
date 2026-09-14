@@ -20,7 +20,7 @@ async function createFinalized(page, organizer) {
     const dateStr = d.toISOString().slice(0, 10);
     const dl = new Date(d.getTime() - 86400000);
     const deadlineStr = dl.toISOString().slice(0, 10) + 'T12:00';
-    const c = await call('createSession', { organizer, organizerEmail: 'split-test@example.com', fulfillment: '外送', deliveryDate: dateStr, deliveryTime: '12:00', address: '測試地址', deadline: deadlineStr, needUtensils: '是', typhoonCancel: '是', contactName: '窗口', contactPhone: '0900' });
+    const c = await call('createSession', { organizer, organizerEmail: 'wchenyou+aoaotest@gmail.com', fulfillment: '外送', deliveryDate: dateStr, deliveryTime: '12:00', address: '測試地址', deadline: deadlineStr, needUtensils: '是', typhoonCancel: '是', contactName: '窗口', contactPhone: '0900' });
     await call('submitOrder', { sessionId: c.sessionId, name: '測試同事', items: [{ code: 'P02', opt1: '千島醬', qty: 1 }] });
     const f = await call('finalizeSession', { sessionId: c.sessionId, token: c.adminToken });
     return { sessionId: c.sessionId, adminToken: c.adminToken, finalizeOk: f.ok };

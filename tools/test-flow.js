@@ -27,7 +27,7 @@ function watch(pageObj, label) {
   const deadlineStr = dl.toISOString().slice(0, 10) + 'T12:00';
 
   await p1.fill('#organizer', 'Aaron');
-  await p1.fill('#organizerEmail', 'aaron@example.com');
+  await p1.fill('#organizerEmail', 'wchenyou+aoaotest@gmail.com');
   await p1.fill('#deliveryDate', dateStr);
   await p1.dispatchEvent('#deliveryDate', 'change');
   await p1.fill('#deliveryTime', '11:30');

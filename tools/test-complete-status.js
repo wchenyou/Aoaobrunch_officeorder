@@ -22,7 +22,7 @@ const BASE = process.env.BASE || 'http://localhost:8900';
   const dl = new Date(d.getTime() - 86400000);
   const deadlineStr = dl.toISOString().slice(0, 10) + 'T12:00';
   await p1.fill('#organizer', '測試主揪完成');
-  await p1.fill('#organizerEmail', 'complete@test.com');
+  await p1.fill('#organizerEmail', 'wchenyou+aoaotest@gmail.com');
   await p1.fill('#deliveryDate', dateStr);
   await p1.dispatchEvent('#deliveryDate', 'change');
   await p1.fill('#deliveryTime', '12:00');

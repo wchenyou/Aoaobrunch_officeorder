@@ -21,7 +21,7 @@ const errs = [];
   const d = new Date(Date.now() + 3 * 86400000);
   const dateStr = d.toISOString().slice(0, 10);
   const deadlineStr = new Date(d.getTime() - 86400000).toISOString().slice(0, 10) + 'T12:00';
-  for (const [sel, val] of [['#organizer','Aaron'],['#organizerEmail','aaron@example.com'],
+  for (const [sel, val] of [['#organizer','Aaron'],['#organizerEmail','wchenyou+aoaotest@gmail.com'],
     ['#deliveryDate',dateStr],['#deliveryTime','11:30'],['#address','台中市西屯區某某路 1 號'],
     ['#deadline',deadlineStr],['#company','大真股份有限公司'],['#taxId','12345678'],
     ['#contactName','Aaron'],['#contactPhone','0912345678'],['#contactAvailableTime','下午 2 點後']]) await p.fill(sel, val);

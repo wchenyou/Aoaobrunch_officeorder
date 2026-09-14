@@ -31,7 +31,7 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   // ---------- 2. 建團 -> 成功畫面有獨立的「主揪自己也要點餐」按鈕（跳頁，不內嵌） ----------
   async function pick(name, value) { await p1.check('input[name="' + name + '"][value="' + value + '"]'); }
   await p1.fill('#organizer', '測試主揪Zoom');
-  await p1.fill('#organizerEmail', 'organizer-zoom@test.com');
+  await p1.fill('#organizerEmail', 'wchenyou+aoaotest@gmail.com');
   await pick('fulfillment', '外送');
   const d = new Date(Date.now() + 3 * 86400000);
   const dateStr = d.toISOString().slice(0, 10);

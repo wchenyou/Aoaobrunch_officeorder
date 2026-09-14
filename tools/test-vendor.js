@@ -22,7 +22,7 @@ const SUPABASE_KEY = 'sb_publishable_-sPP27i_r99uhzwS9W2Z-g_yGwgS8xD';
     const dateStr = d.toISOString().slice(0, 10);
     const dl = new Date(d.getTime() - 86400000);
     const deadlineStr = dl.toISOString().slice(0, 10) + 'T12:00';
-    const c = await call('createSession', { organizer: '店家後台測試', organizerEmail: 'vendortest@example.com', fulfillment: '外送', deliveryDate: dateStr, deliveryTime: '12:00', address: '測試地址', deadline: deadlineStr, needUtensils: '是', typhoonCancel: '是', contactName: '窗口', contactPhone: '0900' });
+    const c = await call('createSession', { organizer: '店家後台測試', organizerEmail: 'wchenyou+aoaotest@gmail.com', fulfillment: '外送', deliveryDate: dateStr, deliveryTime: '12:00', address: '測試地址', deadline: deadlineStr, needUtensils: '是', typhoonCancel: '是', contactName: '窗口', contactPhone: '0900' });
     const o = await call('submitOrder', { sessionId: c.sessionId, name: '隱藏姓名王小明', items: [{ code: 'P02', opt1: '千島醬', qty: 1 }] });
     const f = await call('finalizeSession', { sessionId: c.sessionId, token: c.adminToken });
     return { sessionId: c.sessionId, dateStr, orderOk: o.ok, finalizeOk: f.ok, finalizeMsg: f.message || f.error };
