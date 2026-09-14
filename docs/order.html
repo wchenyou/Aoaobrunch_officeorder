@@ -34,7 +34,7 @@ let MENU = [], SESSION = null, SETTINGS = {}, cart = [];
    的版本，取消編輯時拿來還原，不會留下改一半又反悔的髒資料。 */
 let ORDER_LOCKED = false, LAST_EXISTING = [];
 const page = document.getElementById('page');
-document.getElementById('top').innerHTML = renderTopbar('辦公室團購');
+document.getElementById('top').innerHTML = renderHeroTopbar();
 
 if (!SESSION_ID) {
   page.innerHTML = centerMsg('找不到這個揪團', '連結裡沒有揪團編號，跟主揪要一次正確的點餐連結吧。');

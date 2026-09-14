@@ -31,6 +31,18 @@ function renderTopbar(subtitle) {
     '</header>';
 }
 
+/* 用店家提供的形象照當標頭，取代掌印圖示＋純文字那個版本——圖裡已經
+   有完整的「Ao Ao Brunch 嗷嗷早午餐」品牌識別，兩個疊在一起反而重複。
+   只用在主揪、同事會先看到的頁面（發起揪團、點餐），店家後台跟主揪
+   管理頁是做事用的功能頁，維持原本精簡的標頭就好，不用大圖分散注意力。 */
+function renderHeroTopbar() {
+  return '<header class="topbar topbar-hero">' +
+    '<img class="hero-banner" src="images/hero-banner.jpg" alt="嗷嗷早午餐 Ao Ao Brunch">' +
+    '<svg class="wave" viewBox="0 0 1440 20" preserveAspectRatio="none" aria-hidden="true">' +
+    '<path d="M0,20 C240,2 480,2 720,10 C960,18 1200,18 1440,6 L1440,20 Z"/></svg>' +
+    '</header>';
+}
+
 function renderFoot() {
   return '<div class="foot">' +
     '<strong>嗷嗷早午餐</strong>　台中市西屯區河南路二段486號<br>' +
