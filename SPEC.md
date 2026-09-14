@@ -127,7 +127,7 @@
 
 ## 7. 通知
 
-系統只在兩個時間點寄信，透過 Gmail SMTP（`settings.寄件人Email` + `settings.寄信Gmail應用程式密碼`，直接用一個真的 Gmail 帳號登入 `smtp.gmail.com` 寄信；Apps Script 年代用的是內建的 `MailApp`，搬到 Supabase 後一度試過 Resend，但 Resend 的共用測試網域只能寄給自己，要寄給別人得先買網域驗證，所以改回更直接的 Gmail SMTP）。**目前這組應用程式密碼還沒設定**，所以寄信這塊程式邏輯都在、也不會讓其他功能掛掉，但實際上還沒有信寄得出去——要 Gmail 帳號本人（目前設定是 sunny30248@gmail.com）去 Google 帳號開兩步驟驗證、產生應用程式密碼，貼進 `settings` 表才會真的動起來。
+系統只在兩個時間點寄信，透過 Gmail SMTP（`settings.寄件人Email` + `settings.寄信Gmail應用程式密碼`，直接用一個真的 Gmail 帳號登入 `smtp.gmail.com` 寄信；Apps Script 年代用的是內建的 `MailApp`，搬到 Supabase 後一度試過 Resend，但 Resend 的共用測試網域只能寄給自己，要寄給別人得先買網域驗證，所以改回更直接的 Gmail SMTP）。**2026-09-14 已經設定好應用程式密碼**（寄件人是 sunny30248@gmail.com），實際測試過真的收得到信，寄信功能正式生效。
 
 **建團時** → 寄給主揪，內含點餐連結與管理連結。這是主揪換裝置後找回管理頁的唯一途徑，所以主揪 Email 是必填。
 
