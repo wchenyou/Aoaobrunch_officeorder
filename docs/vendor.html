@@ -357,12 +357,12 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
         '<div class="info-grid">' +
           infoCell('聯絡窗口', (s.contactName || '（未填）') + ' ' + (s.contactPhone || '')) +
           infoCell('方便接聽', s.contactAvailableTime || '—') +
+          infoCell('主揪 Email', s.organizerEmail || '（未填）', true) +
+          (s.note ? infoCell('想跟店家說的話', s.note, true) : '') +
           infoCell('公司名稱', s.company || '（未填）') +
           infoCell('統一編號', s.taxId || '（未填）') +
           infoCell('需要餐具', s.needUtensils || '—') +
           infoCell('颱風假取消', s.typhoonCancel || '—') +
-          infoCell('主揪 Email', s.organizerEmail || '（未填）', true) +
-          (s.note ? infoCell('想跟店家說的話', s.note, true) : '') +
         '</div>' +
         '<dl style="margin:0 0 12px;">' +
           s.items.map(function (it) {
