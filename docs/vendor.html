@@ -350,13 +350,15 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
           '　期望送達 ' + escapeHtml(s.deliveryTime || '') +
           (s.finalizedAt ? '　・　送單於 ' + escapeHtml(fmtDateTime(s.finalizedAt)) : '') + '</div>' +
         /* 聯絡窗口是外送前致電確認要用的，統編是開發票要用的——都是主揪
-           整團共用的資料（不是個別同事的資訊），不含跟團者姓名。 */
-        '<dl style="margin:0 0 12px;">' +
-          '<div class="meta-row"><dt>聯絡窗口</dt><dd>' + escapeHtml(s.contactName || '（未填）') + '　' + escapeHtml(s.contactPhone || '') + '</dd></div>' +
-          '<div class="meta-row"><dt>方便接聽</dt><dd>' + escapeHtml(s.contactAvailableTime || '—') + '</dd></div>' +
-          '<div class="meta-row"><dt>統一編號</dt><dd>' + escapeHtml(s.taxId || '（未填）') + '</dd></div>' +
-          '<div class="meta-row"><dt>需要餐具</dt><dd>' + escapeHtml(s.needUtensils || '—') + '</dd></div>' +
-        '</dl>' +
+           整團共用的資料（不是個別同事的資訊），不含跟團者姓名。用小
+           方格排成兩三欄，寬一點的畫面會自動排成一整排，比原本一行
+           一項的 meta-row 省高度很多。 */
+        '<div class="info-grid">' +
+          infoCell('聯絡窗口', (s.contactName || '（未填）') + ' ' + (s.contactPhone || '')) +
+          infoCell('方便接聽', s.contactAvailableTime || '—') +
+          infoCell('統一編號', s.taxId || '（未填）') +
+          infoCell('需要餐具', s.needUtensils || '—') +
+        '</div>' +
         '<dl style="margin:0 0 12px;">' +
           s.items.map(function (it) {
             const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
@@ -389,6 +391,11 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
 
 function fmtDate(s) {
   return String(s || '').replace(/-/g, '/');
+}
+
+/* 訂購資訊小方格：標籤在上、內容在下，塞進 .info-grid 排成兩三欄用 */
+function infoCell(label, value) {
+  return '<div class="info-cell"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
 }
 
 /* ---------- 匯出 CSV（依日期查詢那頁的資料，品項彙總，不含跟團者姓名） ---------- */
