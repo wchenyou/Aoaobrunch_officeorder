@@ -859,15 +859,23 @@ body.lightbox-open { overflow: hidden; }
 .meta-row dd { margin: 0; text-align: right; font-weight: 600; }
 
 /* 店家後台訂單卡片的訂購資訊小方格——特地用跟卡片本身不同的底色，
-   一眼就看得出這塊是獨立的「客人資訊」區塊。寬螢幕自動排成一整排，
-   窄螢幕收成兩三欄，用最小的高度塞下欄位。分兩個獨立的 .info-grid
-   （不是同一個網格），第一列跟第二列的欄位固定不會混到同一排。 */
+   一眼就看得出這塊是獨立的「客人資訊」區塊。分兩個獨立的 .info-grid
+   （不是同一個網格），第一列跟第二列的欄位固定不會混到同一排。
+
+   欄位數固定寫死（不是 auto-fit）：auto-fit 會依「這個網格自己裝了
+   幾項」決定欄寬，第一列 4 項、第二列 5 項，兩邊欄寬就對不齊了。
+   固定欄數之後，兩個網格永遠共用同一組欄位邊界，上下自然對齊；
+   欄位數不夠放的（例如第二列第 5 項）自動換到下一行，也還是照著
+   同一組欄位。 */
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px 12px;
   padding: 9px 12px;
   background: var(--orange-soft);
+}
+@media (max-width: 560px) {
+  .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .info-grid:first-of-type { border-radius: var(--r-md) var(--r-md) 0 0; }
 .info-grid:last-of-type { border-radius: 0 0 var(--r-md) var(--r-md); margin-bottom: 12px; }
