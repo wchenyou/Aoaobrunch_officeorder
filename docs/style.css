@@ -706,6 +706,7 @@ body.lightbox-open { overflow: hidden; }
 .cart-line-body { flex: 1; min-width: 0; }
 .cart-line-name { font-weight: 700; font-size: 14.5px; }
 .cart-line-spec { color: var(--ink-soft); font-size: 12.5px; margin-top: 2px; }
+.cart-line-note { width: 100%; margin-top: 6px; padding: 6px 10px; font-size: 12.5px; }
 .cart-line-price { font-family: var(--font-num); font-weight: 800; color: var(--orange-deep); white-space: nowrap; }
 .cart-x {
   border: none;

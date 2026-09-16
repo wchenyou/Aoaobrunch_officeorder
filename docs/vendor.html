@@ -349,10 +349,19 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
         '<div class="tiny" style="margin-bottom:10px;">' + escapeHtml(s.fulfillment) + (s.fulfillment === '外送' ? '　' + escapeHtml(s.address || '') : '') +
           '　期望送達 ' + escapeHtml(s.deliveryTime || '') +
           (s.finalizedAt ? '　・　送單於 ' + escapeHtml(fmtDateTime(s.finalizedAt)) : '') + '</div>' +
+        /* 聯絡窗口是外送前致電確認要用的，統編是開發票要用的——都是主揪
+           整團共用的資料（不是個別同事的資訊），不含跟團者姓名。 */
+        '<dl style="margin:0 0 12px;">' +
+          '<div class="meta-row"><dt>聯絡窗口</dt><dd>' + escapeHtml(s.contactName || '（未填）') + '　' + escapeHtml(s.contactPhone || '') + '</dd></div>' +
+          '<div class="meta-row"><dt>方便接聽</dt><dd>' + escapeHtml(s.contactAvailableTime || '—') + '</dd></div>' +
+          '<div class="meta-row"><dt>統一編號</dt><dd>' + escapeHtml(s.taxId || '（未填）') + '</dd></div>' +
+          '<div class="meta-row"><dt>需要餐具</dt><dd>' + escapeHtml(s.needUtensils || '—') + '</dd></div>' +
+        '</dl>' +
         '<dl style="margin:0 0 12px;">' +
           s.items.map(function (it) {
             const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
-            return '<div class="meta-row"><dt>' + escapeHtml(it.itemName) + (specs ? '（' + escapeHtml(specs) + '）' : '') + '</dt>' +
+            return '<div class="meta-row"><dt>' + escapeHtml(it.itemName) + (specs ? '（' + escapeHtml(specs) + '）' : '') +
+              (it.note ? ' <span class="tiny">※' + escapeHtml(it.note) + '</span>' : '') + '</dt>' +
               '<dd>×' + it.qty + '　$' + it.subtotal + '</dd></div>';
           }).join('') +
         '</dl>' +
@@ -391,12 +400,16 @@ function csvCell(v) {
 
 function exportCsv() {
   if (!HISTORY_SESSIONS.length) { alert('目前沒有資料可以匯出，先查詢一次看看。'); return; }
-  const header = ['揪團編號', '預訂日期', '公司／主揪', '取餐方式', '狀態', '品項名稱', '規格', '數量', '小計'];
+  const header = ['揪團編號', '預訂日期', '公司／主揪', '統一編號', '聯絡窗口', '聯絡電話', '方便接聽', '需要餐具', '取餐方式', '狀態', '品項名稱', '規格', '備註', '數量', '小計'];
   const rows = [header];
   HISTORY_SESSIONS.forEach(function (s) {
     s.items.forEach(function (it) {
       const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
-      rows.push([s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.fulfillment, (s.vendorDone ? '已完成' : '尚未完成'), it.itemName, specs, it.qty, it.subtotal]);
+      rows.push([
+        s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.taxId || '', s.contactName || '',
+        s.contactPhone || '', s.contactAvailableTime || '', s.needUtensils || '', s.fulfillment,
+        (s.vendorDone ? '已完成' : '尚未完成'), it.itemName, specs, it.note || '', it.qty, it.subtotal
+      ]);
     });
   });
   const csv = '﻿' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\n');

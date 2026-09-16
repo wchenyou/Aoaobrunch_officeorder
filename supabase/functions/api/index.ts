@@ -633,11 +633,13 @@ async function vendorOrders(p: any) {
   const out: any[] = [];
   for (const s of sessions) {
     const orders = await getOrdersForSession(s.id, false);
+    /* 備註也算進分組鍵——同一品項規格但備註不同（少冰／不要蔥）代表
+       出餐做法不一樣，不能合併成一行，不然備註會被蓋掉不見。 */
     const byKey: Record<string, any> = {};
     let total = 0;
     orders.forEach((o: any) => {
-      const key = [o.itemName, o.size, o.opt1, o.opt2].join('｜');
-      if (!byKey[key]) byKey[key] = { itemName: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, qty: 0, subtotal: 0 };
+      const key = [o.itemName, o.size, o.opt1, o.opt2, o.note || ''].join('｜');
+      if (!byKey[key]) byKey[key] = { itemName: o.itemName, size: o.size, opt1: o.opt1, opt2: o.opt2, note: o.note || '', qty: 0, subtotal: 0 };
       byKey[key].qty += Number(o.qty);
       byKey[key].subtotal += Number(o.subtotal);
       total += Number(o.subtotal);
@@ -646,6 +648,11 @@ async function vendorOrders(p: any) {
       id: s.id, company: s.company, organizer: s.organizer,
       deliveryDate: s.deliveryDate, deliveryTime: s.deliveryTime, fulfillment: s.fulfillment,
       address: s.address, vendorDone: s.vendorDone, finalizedAt: s.finalizedAt,
+      /* 店家需要的訂購資訊：統編（開發票）、聯絡窗口姓名/電話/方便接聽
+         時間（外送前致電確認要用）、要不要附餐具——都不含跟團者姓名，
+         這些是主揪自己填的、整團共用的資料，不是個別同事的資訊。 */
+      taxId: s.taxId, contactName: s.contactName, contactPhone: s.contactPhone,
+      contactAvailableTime: s.contactAvailableTime, needUtensils: s.needUtensils,
       items: Object.values(byKey), total,
     });
   }
