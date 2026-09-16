@@ -357,10 +357,12 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
         '<div class="info-grid">' +
           infoCell('聯絡窗口', (s.contactName || '（未填）') + ' ' + (s.contactPhone || '')) +
           infoCell('方便接聽', s.contactAvailableTime || '—') +
+          infoCell('公司名稱', s.company || '（未填）') +
           infoCell('統一編號', s.taxId || '（未填）') +
           infoCell('需要餐具', s.needUtensils || '—') +
-          infoCell('主揪 Email', s.organizerEmail || '（未填）') +
           infoCell('颱風假取消', s.typhoonCancel || '—') +
+          infoCell('主揪 Email', s.organizerEmail || '（未填）', true) +
+          (s.note ? infoCell('想跟店家說的話', s.note, true) : '') +
         '</div>' +
         '<dl style="margin:0 0 12px;">' +
           s.items.map(function (it) {
@@ -397,8 +399,10 @@ function fmtDate(s) {
 }
 
 /* 訂購資訊小方格：標籤在上、內容在下，塞進 .info-grid 排成兩三欄用 */
-function infoCell(label, value) {
-  return '<div class="info-cell"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
+/* wide=true：這格佔滿整排（Email、備註這種長內容用，會自動換行，
+   不會被截斷看不到） */
+function infoCell(label, value, wide) {
+  return '<div class="info-cell' + (wide ? ' info-cell-wide' : '') + '"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
 }
 
 /* ---------- 匯出 CSV（依日期查詢那頁的資料，品項彙總，不含跟團者姓名） ---------- */
@@ -410,7 +414,7 @@ function csvCell(v) {
 
 function exportCsv() {
   if (!HISTORY_SESSIONS.length) { alert('目前沒有資料可以匯出，先查詢一次看看。'); return; }
-  const header = ['揪團編號', '預訂日期', '公司／主揪', '統一編號', '聯絡窗口', '聯絡電話', '方便接聽', '需要餐具', '主揪Email', '颱風假取消', '取餐方式', '狀態', '品項名稱', '規格', '備註', '數量', '小計'];
+  const header = ['揪團編號', '預訂日期', '公司／主揪', '統一編號', '聯絡窗口', '聯絡電話', '方便接聽', '需要餐具', '主揪Email', '颱風假取消', '建團時的話', '取餐方式', '狀態', '品項名稱', '規格', '品項備註', '數量', '小計'];
   const rows = [header];
   HISTORY_SESSIONS.forEach(function (s) {
     s.items.forEach(function (it) {
@@ -418,7 +422,7 @@ function exportCsv() {
       rows.push([
         s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.taxId || '', s.contactName || '',
         s.contactPhone || '', s.contactAvailableTime || '', s.needUtensils || '', s.organizerEmail || '',
-        s.typhoonCancel || '', s.fulfillment,
+        s.typhoonCancel || '', s.note || '', s.fulfillment,
         (s.vendorDone ? '已完成' : '尚未完成'), it.itemName, specs, it.note || '', it.qty, it.subtotal
       ]);
     });

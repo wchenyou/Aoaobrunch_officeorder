@@ -876,6 +876,10 @@ body.lightbox-open { overflow: hidden; }
   margin: 1px 0 0; font-size: 13px; font-weight: 700; line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* Email、備註這種長內容——佔滿整排、允許換行，寧可多佔一點高度
+   也不要把內容截斷看不到。 */
+.info-cell-wide { grid-column: 1 / -1; }
+.info-cell-wide dd { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 
 .empty {
   text-align: center;
