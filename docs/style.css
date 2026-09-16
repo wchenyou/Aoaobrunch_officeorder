@@ -858,21 +858,22 @@ body.lightbox-open { overflow: hidden; }
 .meta-row dt { color: var(--ink-soft); flex-shrink: 0; font-weight: 600; }
 .meta-row dd { margin: 0; text-align: right; font-weight: 600; }
 
-/* 店家後台訂單卡片的訂購資訊小方格：寬螢幕自動排成一整排，窄螢幕
-   收成兩欄，用最小的高度塞下聯絡窗口/統編這些欄位。 */
+/* 店家後台訂單卡片的訂購資訊小方格——特地用跟卡片本身不同的底色，
+   一眼就看得出這塊是獨立的「客人資訊」區塊。寬螢幕自動排成一整排，
+   窄螢幕收成兩三欄，用最小的高度塞下六項欄位。 */
 .info-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 7px 12px;
   margin: 0 0 12px;
-  padding: 10px 12px;
-  background: var(--surface-alt);
+  padding: 9px 12px;
+  background: var(--orange-soft);
   border-radius: var(--r-md);
 }
 .info-cell { min-width: 0; margin: 0; }
-.info-cell dt { font-size: 11px; color: var(--ink-soft); font-weight: 600; }
+.info-cell dt { font-size: 10.5px; color: var(--ink-soft); font-weight: 600; line-height: 1.3; }
 .info-cell dd {
-  margin: 2px 0 0; font-size: 13.5px; font-weight: 700;
+  margin: 1px 0 0; font-size: 13px; font-weight: 700; line-height: 1.3;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 

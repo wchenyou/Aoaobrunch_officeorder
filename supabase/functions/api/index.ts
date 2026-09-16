@@ -649,10 +649,12 @@ async function vendorOrders(p: any) {
       deliveryDate: s.deliveryDate, deliveryTime: s.deliveryTime, fulfillment: s.fulfillment,
       address: s.address, vendorDone: s.vendorDone, finalizedAt: s.finalizedAt,
       /* 店家需要的訂購資訊：統編（開發票）、聯絡窗口姓名/電話/方便接聽
-         時間（外送前致電確認要用）、要不要附餐具——都不含跟團者姓名，
-         這些是主揪自己填的、整團共用的資料，不是個別同事的資訊。 */
+         時間（外送前致電確認要用）、要不要附餐具、主揪 Email、颱風假
+         是否取消——都不含跟團者姓名，這些是主揪自己填的、整團共用的
+         資料，不是個別同事的資訊。 */
       taxId: s.taxId, contactName: s.contactName, contactPhone: s.contactPhone,
       contactAvailableTime: s.contactAvailableTime, needUtensils: s.needUtensils,
+      organizerEmail: s.organizerEmail, typhoonCancel: s.typhoonCancel,
       items: Object.values(byKey), total,
     });
   }

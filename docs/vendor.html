@@ -344,20 +344,23 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
     const badge = done ? '<span class="badge done">已完成</span>' : '<span class="badge warn">已送單</span>';
     return (
       '<div class="card">' +
-        '<div class="card-head"><span class="dot"></span><h2>' + escapeHtml(fmtDate(s.deliveryDate)) + '　' + escapeHtml(s.company || s.organizer) + '</h2>' +
+        /* 標題就是「日期＋期望送達時間＋公司或主揪名」一行，送單時間跟
+           外送地址另外放一行——跟客人資訊卡分開，避免頭重腳輕。 */
+        '<div class="card-head"><span class="dot"></span><h2>' + escapeHtml(fmtDate(s.deliveryDate)) +
+          '　期望送達 ' + escapeHtml(s.deliveryTime || '') + '　' + escapeHtml(s.company || s.organizer) + '</h2>' +
           '<span class="spacer"></span>' + badge + '</div>' +
         '<div class="tiny" style="margin-bottom:10px;">' + escapeHtml(s.fulfillment) + (s.fulfillment === '外送' ? '　' + escapeHtml(s.address || '') : '') +
-          '　期望送達 ' + escapeHtml(s.deliveryTime || '') +
           (s.finalizedAt ? '　・　送單於 ' + escapeHtml(fmtDateTime(s.finalizedAt)) : '') + '</div>' +
-        /* 聯絡窗口是外送前致電確認要用的，統編是開發票要用的——都是主揪
-           整團共用的資料（不是個別同事的資訊），不含跟團者姓名。用小
-           方格排成兩三欄，寬一點的畫面會自動排成一整排，比原本一行
-           一項的 meta-row 省高度很多。 */
+        /* 聯絡窗口是外送前致電確認要用的，統編是開發票要用的，Email／
+           颱風假是否取消也都是主揪整團共用的資料（不含跟團者姓名）。
+           用不同底色的小卡片、多欄小方格塞進去，最小高度放完六項。 */
         '<div class="info-grid">' +
           infoCell('聯絡窗口', (s.contactName || '（未填）') + ' ' + (s.contactPhone || '')) +
           infoCell('方便接聽', s.contactAvailableTime || '—') +
           infoCell('統一編號', s.taxId || '（未填）') +
           infoCell('需要餐具', s.needUtensils || '—') +
+          infoCell('主揪 Email', s.organizerEmail || '（未填）') +
+          infoCell('颱風假取消', s.typhoonCancel || '—') +
         '</div>' +
         '<dl style="margin:0 0 12px;">' +
           s.items.map(function (it) {
@@ -407,14 +410,15 @@ function csvCell(v) {
 
 function exportCsv() {
   if (!HISTORY_SESSIONS.length) { alert('目前沒有資料可以匯出，先查詢一次看看。'); return; }
-  const header = ['揪團編號', '預訂日期', '公司／主揪', '統一編號', '聯絡窗口', '聯絡電話', '方便接聽', '需要餐具', '取餐方式', '狀態', '品項名稱', '規格', '備註', '數量', '小計'];
+  const header = ['揪團編號', '預訂日期', '公司／主揪', '統一編號', '聯絡窗口', '聯絡電話', '方便接聽', '需要餐具', '主揪Email', '颱風假取消', '取餐方式', '狀態', '品項名稱', '規格', '備註', '數量', '小計'];
   const rows = [header];
   HISTORY_SESSIONS.forEach(function (s) {
     s.items.forEach(function (it) {
       const specs = [it.size, it.opt1, it.opt2].filter(Boolean).join('／');
       rows.push([
         s.id, fmtDate(s.deliveryDate), s.company || s.organizer, s.taxId || '', s.contactName || '',
-        s.contactPhone || '', s.contactAvailableTime || '', s.needUtensils || '', s.fulfillment,
+        s.contactPhone || '', s.contactAvailableTime || '', s.needUtensils || '', s.organizerEmail || '',
+        s.typhoonCancel || '', s.fulfillment,
         (s.vendorDone ? '已完成' : '尚未完成'), it.itemName, specs, it.note || '', it.qty, it.subtotal
       ]);
     });
