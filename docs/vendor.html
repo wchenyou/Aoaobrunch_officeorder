@@ -354,15 +354,21 @@ function renderOrderCards(container, sessions, emptyText, onReload) {
         /* 聯絡窗口是外送前致電確認要用的，統編是開發票要用的，Email／
            颱風假是否取消也都是主揪整團共用的資料（不含跟團者姓名）。
            用不同底色的小卡片、多欄小方格塞進去，最小高度放完六項。 */
+        /* 分兩個獨立的 .info-grid，不是同一個網格裡排版——這樣不管螢幕
+           多寬，第一列（聯絡窗口/電話/方便接聽/Email）跟第二列（公司/
+           統編/餐具/颱風假/備註）都不會混到同一排去。 */
         '<div class="info-grid">' +
-          infoCell('聯絡窗口', (s.contactName || '（未填）') + ' ' + (s.contactPhone || '')) +
+          infoCell('聯絡窗口', s.contactName || '（未填）') +
+          infoCell('聯絡電話', s.contactPhone || '（未填）') +
           infoCell('方便接聽', s.contactAvailableTime || '—') +
-          infoCell('主揪 Email', s.organizerEmail || '（未填）', true) +
-          (s.note ? infoCell('想跟店家說的話', s.note, true) : '') +
+          infoCell('主揪 Email', s.organizerEmail || '（未填）') +
+        '</div>' +
+        '<div class="info-grid">' +
           infoCell('公司名稱', s.company || '（未填）') +
           infoCell('統一編號', s.taxId || '（未填）') +
           infoCell('需要餐具', s.needUtensils || '—') +
           infoCell('颱風假取消', s.typhoonCancel || '—') +
+          (s.note ? infoCell('想跟店家說的話', s.note) : '') +
         '</div>' +
         '<dl style="margin:0 0 12px;">' +
           s.items.map(function (it) {
@@ -401,8 +407,8 @@ function fmtDate(s) {
 /* 訂購資訊小方格：標籤在上、內容在下，塞進 .info-grid 排成兩三欄用 */
 /* wide=true：這格佔滿整排（Email、備註這種長內容用，會自動換行，
    不會被截斷看不到） */
-function infoCell(label, value, wide) {
-  return '<div class="info-cell' + (wide ? ' info-cell-wide' : '') + '"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
+function infoCell(label, value) {
+  return '<div class="info-cell"><dt>' + escapeHtml(label) + '</dt><dd>' + escapeHtml(value) + '</dd></div>';
 }
 
 /* ---------- 匯出 CSV（依日期查詢那頁的資料，品項彙總，不含跟團者姓名） ---------- */
