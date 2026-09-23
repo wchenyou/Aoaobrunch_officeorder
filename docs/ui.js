@@ -118,17 +118,17 @@ document.addEventListener('click', function (e) {
 
 /* ==========================================================================
    查看菜單——發起團購頁、點餐頁共用
-   就一顆按鈕，點下去用大圖看店家的完整菜單相片（同一張圖，不用另外維護）。
+   就一顆按鈕，點下去用大圖看店家的外送專用菜單相片（同一張圖，不用另外維護）。
    ========================================================================== */
 
 const MENU_PHOTO_URL = 'images/menu/full-menu.jpg';
 
 function menuButton() {
-  return '<button type="button" class="btn btn-ghost btn-sm" data-view-menu>📋 完整菜單</button>';
+  return '<button type="button" class="btn btn-ghost btn-sm" data-view-menu>📋 外送專用菜單</button>';
 }
 
 document.addEventListener('click', function (e) {
-  if (e.target.closest('[data-view-menu]')) openLightbox(MENU_PHOTO_URL, '完整菜單');
+  if (e.target.closest('[data-view-menu]')) openLightbox(MENU_PHOTO_URL, '外送專用菜單');
 });
 
 /* ==========================================================================
